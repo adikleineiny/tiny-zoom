@@ -8,6 +8,32 @@ export const CONFIG = {
   barrierHeight: 6,          // foam track barriers; flyers above this can cut over them
   droneShortcutMargin: 55,   // extra lateral room (cm) a flying drone gets beyond the barriers (0 near gates / tight sections)
   gravity: 640,              // cm/s² for jumping / knocked-up ground vehicles (toy-scale, a bit floaty on purpose)
+  // flyers get extra lateral room in these sections (×droneShortcutMargin); 0 = must stay between the barriers
+  sectionFlyMargin: { 2: 0, 3: 0, 5: 0, 7: 0, 6: 1.6 },
+
+  // ===== Terrain: ramps, hills, puddles =====
+  terrain: {
+    rampKick: 1.0,         // global multiplier on every ramp/hill's take-off pop (per-feature `kick` in track.js FEATURES)
+    hillKick: 1.7,         // take-off pop over hill crests
+    airGravityMul: 0.62,   // gravity multiplier while flying off a ramp/hill (floaty arcade air)
+    slopeAccel: 0.55,      // how much slopes slow you uphill / speed you up downhill (× gravity × slope)
+    maxStep: 3.2,          // terrain edges higher than this (cm) act like a wall (e.g. the side of a ramp)
+  },
+
+  // ===== Flyer handling assist (drone + helicopter) =====
+  // level 0 = raw simulation (hard), 1 = maximum help. Override e.g. ?cfg={"flyerAssist":{"level":0.3}}
+  flyerAssist: {
+    level: 0.85,
+    autoAltitude: true,    // stick centred → hold a safe altitude that follows the terrain and drops under the next gate / ceiling
+    cruiseAlt: 22,         // auto-altitude height above the terrain (cm)
+    ceilingGuard: true,    // climbing is softly limited so you don't bonk gate bars / tunnel & table ceilings
+    headingAssist: 1.8,    // rad/s-ish pull of the nose toward the track direction when you are not steering
+    yawExpo: 0.45,         // softer yaw around stick centre (precise small corrections)
+    extraLateralDamp: 3.5, // kills sideways sliding
+    brakeDrag: 1.6,        // extra air-brake when the forward stick is released (stops drifting on)
+    tiltBoost: 1.6,        // helicopter: rotor-disc tilt follows the stick this much faster
+    wobbleCut: 0.8,        // helicopter: hover wobble reduced by this fraction
+  },
 
   vehicles: {
     car: {
@@ -38,7 +64,7 @@ export const CONFIG = {
     },
     drone: {
       label: 'Drone',
-      thrust: 138,         // horizontal accel at full pitch; top speed ≈ thrust/drag
+      thrust: 150,         // horizontal accel at full pitch; top speed ≈ thrust/drag
       drag: 1.25,          // low drag = more inertia (slow to start AND slow to stop)
       lateralDamp: 2.0,    // how quickly sideways drift dies out
       tiltResponse: 0,     // >0: thrust follows a lagging rotor-disc tilt (helicopter feel); 0 = instant (drone)
@@ -72,7 +98,7 @@ export const CONFIG = {
     drone: { class: 'drone', label: 'RC Drone', icon: '🛸', note: 'Hovers & flies over obstacles – needs charging ⚡',
       stats: { Speed: 68, Accel: 50, Handling: 85, Jump: 0 } },
     heli: { class: 'drone', label: 'RC Helicopter', icon: '🚁', note: 'Fast forward flight, heavy momentum, wobbly hover ⚡',
-      thrust: 140, drag: 1.05, lateralDamp: 1.1, yawRate: 2.0, climbRate: 36, climbResponse: 1.7, tiltResponse: 2.6, hoverWobble: 5,
+      thrust: 148, drag: 1.05, lateralDamp: 1.1, yawRate: 2.0, climbRate: 36, climbResponse: 1.7, tiltResponse: 2.6, hoverWobble: 5,
       radius: 7.5, halfWidth: 7, height: 6, mass: 1.1, batteryDrainBase: 0.95, batteryDrainThrust: 0.75,
       stats: { Speed: 88, Accel: 40, Handling: 45, Jump: 0 } },
   },
@@ -81,12 +107,14 @@ export const CONFIG = {
   surfaces: {
     tile:  { label: 'Tiles', car: { speed: 1.0, accel: 1.0, grip: 1.0 }, drone: { speed: 1.0, accel: 1.0 } },
     grass: { label: 'Grass',    car: { speed: 0.64, accel: 0.6, grip: 0.7 }, drone: { speed: 1.0, accel: 1.0 } },
+    road:  { label: 'Play-mat road', car: { speed: 1.0, accel: 1.0, grip: 1.0 }, drone: { speed: 1.0, accel: 1.0 } },
+    water: { label: 'Puddle / mud', car: { speed: 0.42, accel: 0.45, grip: 0.5 }, drone: { speed: 1.0, accel: 1.0 } },
   },
 
   battery: {
     lowThreshold: 25,     // below this %, speed is reduced
     minSpeedFactor: 0.55, // speed factor at 0%
-    padChargeRate: 45,    // %/s while on a pad
+    padChargeRate: 55,    // %/s while on a pad
     padRadius: 20,
     padMaxAltitude: 9,    // drone must be this low (cm) over the pad to charge
   },
@@ -97,7 +125,7 @@ export const CONFIG = {
     rechargeBelow: 42, rechargeUntil: 90,
     latAcc: { car: 330, drone: 225, heli: 190 },
     brake: { car: 280, drone: 112, heli: 90 },
-    sectionCap: { car: { 2: 112, 3: 92 }, drone: { 2: 92, 3: 74 }, heli: { 2: 82, 3: 62 } },
+    sectionCap: { car: { 2: 112, 3: 92 }, drone: { 2: 92, 3: 74, 5: 92 }, heli: { 2: 82, 3: 62, 5: 84 } },
     skill: [0.985, 0.965, 0.95],
     hopMaxHeight: 12,       // AI cars jump obstacles up to this height
     randomJumpRate: 0.06,   // random "for fun" jumps per second on straights
@@ -106,7 +134,7 @@ export const CONFIG = {
   // ===== Secret weapons =====
   weapons: {
     enabled: true,
-    boxRows: [0.08, 0.27, 0.45, 0.62, 0.80, 0.93], // where '?' box rows sit (fraction of lap)
+    boxRows: [0.05, 0.15, 0.24, 0.33, 0.43, 0.52, 0.61, 0.70, 0.79, 0.89, 0.96], // where '?' box rows sit (fraction of lap)
     boxLat: [-0.55, 0, 0.55],  // lateral positions (fraction of half width)
     boxRespawn: 4, boxRadius: 10, droneCollectAlt: 34,
     rollTime: 1.3,             // slot-machine roll before you get the weapon

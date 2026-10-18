@@ -1,6 +1,6 @@
 import * as THREE from './three.module.min.js';
 import { CONFIG } from './config.js';
-import { Track, SECTION_NAMES } from './track.js';
+import { Track, SECTION_NAMES, SECTION_TIPS, TUNNEL } from './track.js';
 import { buildWorld } from './world.js';
 import { Racer, AIDriver, Sim } from './sim.js';
 import { createVehicleMesh, updateVehicleMesh } from './vehicles.js';
@@ -23,7 +23,6 @@ const weapons = new Weapons(sim, track);
 const fx = new FX(scene, sim);
 const input = new Input();
 
-const SECTION_TIPS = { 1: 'Smooth tiles – floor it!', 2: 'Low ceiling – fly low!', 3: 'Narrow low gate!', 4: 'Grass – cars slow down', 5: 'Home through the glass door' };
 const COLORS = [0x3a86ff, 0xe63946, 0x2a9d8f, 0xf4a261, 0x9b5de5];
 const MODELS = Object.keys(CONFIG.models);
 const NAMES = ['Bolt', 'Buzz', 'Cork', 'Bee', 'Zip'];
@@ -121,7 +120,8 @@ function updateCamera(dt, snap) {
     want.x = vx + (want.x - vx) * 0.78; want.y = vy + (want.y - vy) * 0.78; want.z = vz + (want.z - vz) * 0.78;
   }
   const ce = track.ceilingAt(want.x, want.z); if (want.y > ce - 3 && r.y < ce) want.y = Math.max(2, ce - 3);
-  if (want.y < 2) want.y = 2;
+  { const cv = track.ceilingAt(r.x, r.z); if (cv < CONFIG.maxAltitude && want.y > cv - 3 && r.y < cv) want.y = Math.max(2, cv - 3); } // inside the tunnel: stay under the pipe
+  { const gy = track.groundAt(want.x, want.z) + 2.5; if (want.y < gy) want.y = gy; }
   if (snap) camPos.copy(want); else camPos.lerp(want, Math.min(1, dt * (7 + r.speed / 18)));
   camera.position.copy(camPos);
   camLook.set(r.x + fx * C.lookAhead, r.y + C.lookUp, r.z + fz * C.lookAhead);
@@ -134,19 +134,27 @@ function updateCamera(dt, snap) {
 }
 
 // ---------- HUD ----------
-const mm = $('minimap'), mctx = mm.getContext('2d');
+const mm = $('minimap'), mctx = mm.getContext('2d'), MW = mm.width, MH = mm.height;
 let mmB = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9 };
 for (let i = 0; i < track.N; i++) { mmB.x0 = Math.min(mmB.x0, track.px[i]); mmB.x1 = Math.max(mmB.x1, track.px[i]); mmB.z0 = Math.min(mmB.z0, track.pz[i]); mmB.z1 = Math.max(mmB.z1, track.pz[i]); }
-const mmS = Math.min(130 / (mmB.x1 - mmB.x0), 92 / (mmB.z1 - mmB.z0));
-const mmX = x => 10 + (x - mmB.x0) * mmS + (130 - (mmB.x1 - mmB.x0) * mmS) / 2, mmZ = z => 10 + (z - mmB.z0) * mmS;
+const mmS = Math.min((MW - 16) / (mmB.x1 - mmB.x0), (MH - 16) / (mmB.z1 - mmB.z0));
+const mmX = x => 8 + (x - mmB.x0) * mmS + (MW - 16 - (mmB.x1 - mmB.x0) * mmS) / 2, mmZ = z => 8 + (z - mmB.z0) * mmS + (MH - 16 - (mmB.z1 - mmB.z0) * mmS) / 2;
+const SEC_COL = { 1: '#ffffff', 2: '#ffe8b0', 3: '#ffffff', 4: '#b8f28c', 5: '#c9a26b', 6: '#7fd65a', 7: '#b0b8c8', 8: '#d6f5a0' };
+// static layer drawn once: track coloured by section, house wall, tunnel, ramps
+const mmBase = document.createElement('canvas'); mmBase.width = MW; mmBase.height = MH;
+{ const g = mmBase.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round';
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 7; g.beginPath(); for (let i = 0; i <= track.N; i += 3) { const k = i % track.N; i ? g.lineTo(mmX(track.px[k]), mmZ(track.pz[k])) : g.moveTo(mmX(track.px[k]), mmZ(track.pz[k])); } g.closePath(); g.stroke();
+  g.lineWidth = 4.5; for (let i = 0; i < track.N; i += 2) { const j = (i + 3) % track.N; g.strokeStyle = SEC_COL[track.section[i]] || '#fff'; g.beginPath(); g.moveTo(mmX(track.px[i]), mmZ(track.pz[i])); g.lineTo(mmX(track.px[j]), mmZ(track.pz[j])); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.strokeRect(mmX(0), mmZ(0), 1400 * mmS, 900 * mmS);
+  g.strokeStyle = '#3b2a1a'; g.lineWidth = 6; g.beginPath(); g.moveTo(mmX(TUNNEL.x0), mmZ(TUNNEL.zc)); g.lineTo(mmX(TUNNEL.x1), mmZ(TUNNEL.zc)); g.stroke();
+  for (const f of track.hfeat) { g.fillStyle = f.kind === 'ramp' ? '#ff7b00' : '#2f7d1f'; g.beginPath(); g.arc(mmX(f.x), mmZ(f.z), f.kind === 'ramp' ? 2.2 : 1.8, 0, 7); g.fill(); }
+  for (const f of track.puddles) { g.fillStyle = f.mud ? '#6b4a2b' : '#3d8fd6'; g.beginPath(); g.arc(mmX(f.x), mmZ(f.z), 2.6, 0, 7); g.fill(); }
+  g.fillStyle = '#111'; const s0 = track.gates[0]; g.fillRect(mmX(track.px[s0.i]) - 3, mmZ(track.pz[s0.i]) - 1, 6, 2);
+}
 function drawMinimap() {
-  mctx.clearRect(0, 0, 150, 112);
-  mctx.strokeStyle = 'rgba(255,255,255,.75)'; mctx.lineWidth = 5; mctx.lineJoin = 'round'; mctx.beginPath();
-  for (let i = 0; i <= track.N; i += 4) { const k = i % track.N; i ? mctx.lineTo(mmX(track.px[k]), mmZ(track.pz[k])) : mctx.moveTo(mmX(track.px[k]), mmZ(track.pz[k])); }
-  mctx.closePath(); mctx.stroke();
-  mctx.strokeStyle = 'rgba(255,255,255,.35)'; mctx.lineWidth = 1; mctx.beginPath(); mctx.moveTo(mmX(0), mmZ(900)); mctx.lineTo(mmX(1400), mmZ(900)); mctx.stroke();
-  for (const p of track.pads) { mctx.fillStyle = '#4cc9f0'; mctx.fillRect(mmX(p.x) - 3, mmZ(p.z) - 3, 6, 6); }
-  for (const r of sim.racers) { mctx.fillStyle = '#' + r.color.toString(16).padStart(6, '0'); mctx.beginPath(); mctx.arc(mmX(r.x), mmZ(r.z), r.isPlayer ? 5 : 3.5, 0, 7); mctx.fill(); if (r.isPlayer) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 2; mctx.stroke(); } }
+  mctx.clearRect(0, 0, MW, MH); mctx.drawImage(mmBase, 0, 0);
+  for (const p of track.pads) { mctx.fillStyle = '#4cc9f0'; mctx.fillRect(mmX(p.x) - 2.5, mmZ(p.z) - 2.5, 5, 5); }
+  for (const r of sim.racers) { mctx.fillStyle = '#' + r.color.toString(16).padStart(6, '0'); mctx.beginPath(); mctx.arc(mmX(r.x), mmZ(r.z), r.isPlayer ? 4.5 : 3.2, 0, 7); mctx.fill(); if (r.isPlayer) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 2; mctx.stroke(); } }
 }
 function updateSlot(dt) {
   if (!player) return;
@@ -186,11 +194,11 @@ function updateHUD(dt) {
   const w = $('warn'); let msg = '', ok = false;
   if (player.bomb) msg = `💣 Sticky bomb ${player.bomb.t.toFixed(1)}s – bump someone!`;
   else if (player.stunT > 0) msg = '⚡ Power cut!';
-  else if (player.gateBlockT > 0) msg = 'Lower! Pass under the gate';
+  else if (player.gateBlockT > 0) msg = player.section === 5 ? 'No flying over the hill – into the pipe!' : 'Lower! Pass under the gate';
   else if (player.wrongWayT > 1) msg = 'Wrong way!';
   else if (player.onPad && player.battery < 100) { msg = '⚡ Charging...'; ok = true; }
   else if (b < CONFIG.battery.lowThreshold) msg = player.type === 'drone' ? 'Low battery! Land on a ⚡ pad' : 'Low battery!';
-  else if (player.type === 'drone' && player.y < 3 && state === 'race' && player.spool >= 1 && player.lapsDone === 0 && sim.t < 6) { msg = 'Left stick up to take off'; ok = true; }
+  else if (player.type === 'drone' && player.y - (player.groundY || 0) < 3 && state === 'race' && !(CONFIG.flyerAssist?.autoAltitude && CONFIG.flyerAssist.level > 0) && player.spool >= 1 && player.lapsDone === 0 && sim.t < 6) { msg = 'Left stick up to take off'; ok = true; }
   w.textContent = msg; w.classList.toggle('ok', ok);
   drawMinimap();
 }
@@ -244,7 +252,7 @@ function frame(now) {
 
 // ---------- test / debug hooks ----------
 window.__rc = {
-  sim, track, CONFIG, get state() { return state; }, get player() { return player; },
+  sim, track, CONFIG, scene, get calls() { return renderer.info.render.calls; }, get state() { return state; }, get player() { return player; },
   startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
   setCam(pos, look) { camOverride = pos ? [pos, look] : null; },
   give(w, r = player) { weapons.give(r, w); }, fire(r = player) { return weapons.use(r); },

@@ -235,7 +235,7 @@ export function updateVehicleMesh(p, r, dt, t) {
     if (dt > 0) {
       const acc = Math.max(-1500, Math.min(1500, (fwd - p.lastFwd) / dt)); p.lastFwd = fwd;
       p.susV += (-p.susY * 320 - p.susV * 13) * dt; p.susY += p.susV * dt; p.susY = Math.max(-1.6, Math.min(1.6, p.susY));
-      const pitchT = air ? Math.max(-0.35, Math.min(0.35, r.vy / 700)) : Math.max(-0.1, Math.min(0.1, acc / 2200));
+      const pitchT = air ? Math.max(-0.45, Math.min(0.45, r.vy / 420)) : Math.max(-0.1, Math.min(0.1, acc / 2200)) + Math.atan(r.slopeF || 0) * Math.sign(fwd || 1);
       const rollT = air ? 0 : Math.max(-0.14, Math.min(0.14, -fwd * yawRate / 2600)) * (r.drifting ? 1.4 : 1);
       p.pitch += (pitchT - p.pitch) * Math.min(1, dt * 8); p.roll += (rollT - p.roll) * Math.min(1, dt * 8);
       p.squash = Math.max(0, p.squash - dt * 4.5);

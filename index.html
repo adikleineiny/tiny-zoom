@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Tiny Zoom — Toy Racing</title>
+<title>Tiny Zoom v3 — Toy Racing</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -22,7 +22,7 @@
   <div id="hudPos" class="panel"><div class="lbl">Place</div><div><span id="posNum">4</span><small>/4</small></div></div>
   <div id="hudLap" class="panel"><div id="lapNum">Lap 1/3</div><div id="lapTime" class="mono">0:00.00</div></div>
   <div id="hudTimes" class="panel"><div>Total <b id="totTime" class="mono">0:00.0</b></div><div>Best <b id="bestTime" class="mono">—</b></div></div>
-  <canvas id="minimap" width="150" height="112"></canvas>
+  <canvas id="minimap" width="150" height="132"></canvas>
   <div id="hudBat" class="panel"><div class="batIcon"><div id="batFill"></div></div><span id="batPct" class="mono">100%</span><span id="spd" class="mono">0</span><small>cm/s</small><span id="alt" class="mono"></span></div>
   <div id="toast"></div>
   <div id="warn"></div>
@@ -40,17 +40,19 @@
 <div id="menu" class="overlay">
   <div class="menuBox">
     <div class="menuHead">
-      <h1>Tiny Zoom <span class="tag">v2</span></h1>
+      <h1>Tiny Zoom <span class="tag">v3</span></h1>
       <div class="sub">RC toy racing · tiny vehicles, giant world · jumps &amp; secret weapons</div>
     </div>
     <div class="menuBody">
       <div class="trackCard">
-        <div class="cardTitle">🏁 Track: <b>From the Kitchen to the Garden</b> <span class="tag">v1</span></div>
+        <div class="cardTitle">🏁 Track: <b>From the Kitchen to the Garden</b> <span class="tag">XL</span></div>
         <ol class="sections">
-          <li><b>Kitchen Floor</b> – smooth tiles, the car accelerates fastest; the drone takes time to take off</li>
-          <li><b>Under the Table</b> – between chair legs, low ceiling: fly low</li>
-          <li><b>Pet Door</b> – a narrow, low gate everyone must pass through</li>
-          <li><b>Garden &amp; Home</b> – grass that slows cars, then back inside</li>
+          <li><b>Kitchen &amp; Table</b> – fast tiles, then between chair legs under a low table</li>
+          <li><b>Pet Door → Lawn</b> – squeeze through the flap, kicker ramp on the grass</li>
+          <li><b>Sandbox Tunnel</b> – a drain pipe through the sand hill (no flying over!)</li>
+          <li><b>Rolling Hills</b> – bumps that throw you into the air</li>
+          <li><b>Toy Town</b> – street between houses, garage-roof shortcut over the mud, BIG JUMP over the puddle</li>
+          <li><b>Gnome Garden</b> – through the doghouse and back inside</li>
         </ol>
         <div class="small">3 laps · 3 rivals · pass every checkpoint gate (you can't fly over them)</div>
         <div class="small wtip">🎁 Grab glowing <b>?</b> boxes for a random secret weapon: 💣 Sticky Bomb · 💨 Nitro Turbo · 🔥 Fire Trail · ⚡ Electrify · 🚀 Rocket · 🔴 Ball · 💥 Shockwave · 🛢️ Oil · 🥊 Glove</div>
@@ -68,7 +70,8 @@
     <p><b>🏎️🏍️🛴 Ground (race car, motorcycle, scooter):</b> Left stick up = throttle, down = brake/reverse. Right stick left/right = steering. Hard steer at speed = drift. <b>JUMP</b> button hops over small obstacles and barriers.</p>
     <p><b>🚁 Drone / Helicopter:</b> Left stick up/down = altitude (center = hold). Right stick: left/right = yaw, up/down = forward/back. The helicopter tilts its rotor first, carries more momentum and hovers less steadily. JUMP = quick hop up.</p>
     <p><b>🎁 Weapons:</b> Drive through a glowing <b>?</b> box – the slot rolls a random weapon. Press <b>FIRE</b> to use it. Hits make racers spin/tumble briefly. A sticky bomb can be passed on by bumping another racer!</p>
-    <p><b>⚡ Battery:</b> Flyers drain fast. Land low over the blue charging pad to recharge. Low battery = less speed.</p>
+    <p><b>🛟 Flight assist:</b> Leave the left stick centred and the drone/helicopter holds a safe height by itself – it follows the hills and ducks under gates, tables and the tunnel. Not steering? The nose gently lines up with the track. Over a ⚡ pad it lands to charge.</p>
+    <p><b>⚡ Battery:</b> Flyers drain fast. Land low over a blue charging pad to recharge (5 along the track). Low battery = less speed.</p>
     <p><b>⌨️ Keyboard:</b> W/S or ↑/↓ = throttle / forward-back · A/D or ←/→ = steer · Space = jump (ground) / up (flyers) · E up · Shift/Q down · F = fire · R = reset to track · Esc = pause</p>
     <button class="big" id="btnHelpClose">Got it</button>
   </div>

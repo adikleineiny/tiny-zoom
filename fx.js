@@ -84,6 +84,7 @@ export class FX {
   onEvent(e) {
     const r = e.r;
     switch (e.type) {
+      case 'launch': this.burst(r.x, r.y + 2, r.z, 12, 60, { color: 0xffd23f, size: 3.5, life: 0.45, star: true }); break;
       case 'jump': this.burst(r.x, r.y + 1, r.z, 6, 30, { color: 0xc8b89a, add: false, alpha: 0.5, size: 4, life: 0.5, grow: 1.5 }); break;
       case 'land': this.burst(r.x, r.y + 1, r.z, 6 + Math.round(10 * e.impact), 40 + 60 * e.impact, { color: 0xc8b89a, add: false, alpha: 0.55, size: 5, life: 0.6, grow: 1.8, up: -10 }); break;
       case 'pickup': this.burst(e.b.x, e.b.y, e.b.z, 18, 70, { color: 0xffd23f, size: 4, life: 0.5, star: true }); break;
@@ -126,9 +127,9 @@ export class FX {
   }
   makeHaz(h) {
     let m;
-    if (h.kind === 'oil') { m = new THREE.Mesh(new THREE.CircleGeometry(h.R, 24), new THREE.MeshBasicMaterial({ map: OIL, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6; m.position.set(h.x, 0.35, h.z); }
+    if (h.kind === 'oil') { m = new THREE.Mesh(new THREE.CircleGeometry(h.R, 24), new THREE.MeshBasicMaterial({ map: OIL, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6; m.position.set(h.x, h.y + 0.35, h.z); }
     else if (h.kind === 'fire') { m = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xff7a1a, blending: ADD, transparent: true, depthWrite: false })); m.position.set(h.x, h.y + 4, h.z); }
-    else { m = this.bombMesh(); m.position.set(h.x, 2.6, h.z); }
+    else { m = this.bombMesh(); m.position.set(h.x, h.y + 2.6, h.z); }
     this.scene.add(m); return { m };
   }
   syncHaz(o, h, dt) {
@@ -174,7 +175,9 @@ export class FX {
     if (r.stunT > 0 && Math.random() < 0.6) this.spawn(r.x + rnd(-6, 6), r.y + rnd(2, 9), r.z + rnd(-6, 6), { color: 0x7df9ff, size: rnd(2, 4), life: 0.15 });
     // dizzy stars
     if ((r.spinT > 0 || r.tumbleT > 0) && Math.random() < 0.25) { const a3 = t * 8 + Math.random(); this.spawn(r.x + Math.cos(a3) * 5, r.y + 12, r.z + Math.sin(a3) * 5, { color: 0xffe066, star: true, size: 2.5, life: 0.35, vy: 10 }); }
+    // splashes in puddles / mud
+    if (r.type === 'car' && r.grounded && r.surface === 'water' && r.speed > 25 && Math.random() < 0.8) for (const sd of [-1, 1]) this.spawn(r.x - c * 3 - s * sd * 4, r.y + 1, r.z - s * 3 + c * sd * 4, { color: 0xbfe3ff, add: false, alpha: 0.7, size: 2.2, life: 0.45, vx: -s * sd * 30 - c * 10, vz: c * sd * 30 - s * 10, vy: rnd(30, 60), grav: 200, drag: 0.5 });
     // drift smoke / grass bits
-    if (r.type === 'car' && r.grounded && (r.drifting || r.spinT > 0) && Math.random() < 0.7) this.spawn(r.x - c * 5 + rnd(-2, 2), r.y + 1, r.z - s * 5 + rnd(-2, 2), { color: r.surface === 'grass' ? 0x6a9a3a : 0xdddddd, add: false, alpha: 0.45, size: 3.5, grow: 2, life: 0.6, vy: 8 });
+    if (r.type === 'car' && r.grounded && (r.drifting || r.spinT > 0) && Math.random() < 0.7) this.spawn(r.x - c * 5 + rnd(-2, 2), r.y + 1, r.z - s * 5 + rnd(-2, 2), { color: r.surface === 'grass' ? 0x6a9a3a : r.surface === 'water' ? 0x9fc6e0 : 0xdddddd, add: false, alpha: 0.45, size: 3.5, grow: 2, life: 0.6, vy: 8 });
   }
 }

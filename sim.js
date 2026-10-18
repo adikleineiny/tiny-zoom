@@ -42,7 +42,7 @@ export class AIDriver {
     let tx = T.px[ti] + T.nx[ti] * line[ti] * this.lineK, tz = T.pz[ti] + T.nz[ti] * line[ti] * this.lineK;
     const prof = r.type === 'car' ? T.carSpeed : heli ? T.heliSpeed : T.droneSpeed;
     let vt = prof[(r.idx + Math.round((8 + sp * 0.25) / ds)) % N] * this.skill;
-    let targetAlt = Math.min(A.cruiseAltitude + this.altOff, T.droneSafeAlt[r.idx]);
+    let targetAlt = Math.min(A.cruiseAltitude + this.altOff + T.gndAhead[r.idx], T.droneSafeAlt[r.idx]);
     // drone recharge logic
     if (r.type === 'drone') {
       if (!this.pad && r.battery < A.rechargeBelow) {
@@ -50,11 +50,12 @@ export class AIDriver {
       }
       if (this.pad) {
         const p = this.pad, d = Math.hypot(p.x - r.x, p.z - r.z), ah = T.wrapS(p.s - r.s);
-        if (r.battery >= A.rechargeUntil || ah < -70) { this.pad = null; }
-        else {
+        this.padT = (this.padT || 0) + dt;
+        if (r.battery >= A.rechargeUntil || ah < -70 || (this.padT > 9 && d > 30)) { this.pad = null; this.padT = 0; }
+        else if (ah < 140 || d < 90) { // only home in once it's close along the track (never steer through walls / door frames)
           tx = p.x; tz = p.z; vt = Math.min(vt, Math.max(0, (d - 4) * 1.0));
-          if (d < 45) targetAlt = 0; 
-        }
+          if (d < 45) targetAlt = r.groundY || 0;
+        } else vt = Math.min(vt, Math.max(40, (ah - 60) * 0.9));
       }
     }
     let desired = Math.atan2(tz - r.z, tx - r.x);
@@ -62,7 +63,7 @@ export class AIDriver {
     const err = wrapA(desired - r.heading);
     // stuck detection
     if (sp < 5 && !(this.pad) && r.y < 40) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt);
-    if (this.stuckT > 1.0 && !(r.type === 'drone' && r.y < 3 && r.spool < 1)) { this.recoverT = 0.9; this.stuckT = 0; }
+    if (this.stuckT > 1.0 && !(r.type === 'drone' && r.y - (r.groundY || 0) < 3 && r.spool < 1)) { this.recoverT = 0.9; this.stuckT = 0; }
     if (sp < 5 && !this.pad && running) this.stuckLong = (this.stuckLong || 0) + dt; else this.stuckLong = 0;
     if (this.stuckLong > 4.5) { this.stuckLong = 0; r.respawnReq = true; }
     // no forward progress for a while (wedged / knocked somewhere silly) → back on track
@@ -96,7 +97,7 @@ export class AIDriver {
       let pitch = fwd < vt - 2 ? 1 : fwd > vt + 5 ? -1 : 0.25;
       if (this.pad && Math.hypot(this.pad.x - r.x, this.pad.z - r.z) < 10) { pitch = clamp(-fwd / 20, -1, 1); inp.steer *= 0.3; }
       if (Math.abs(err) > 0.9) pitch *= 0.3;
-      if (r.y < r.V.takeoffAltitude + 1 && targetAlt > 5) pitch = 0; // wait for lift-off
+      if (r.y - (r.groundY || 0) < r.V.takeoffAltitude + 1 && targetAlt - (r.groundY || 0) > 5) pitch = 0; // wait for lift-off
       if (heli && r.tiltP > 0.5 && fwd > vt + 2) pitch = -1; // heli: brake early, it carries momentum
       inp.pitch = pitch;
     }
@@ -113,7 +114,7 @@ export class Sim {
     if (r.immuneT > 0 || (r.finished && !r.isPlayer && false)) return false;
     const m = 1 / (r.V.mass || 1), slow = o.slow ?? 0.6;
     r.vx = r.vx * slow + (o.kx || 0) * m; r.vz = r.vz * slow + (o.kz || 0) * m;
-    if (o.up) { r.vy = Math.max(r.vy, o.up * (r.type === 'drone' ? 0.6 : 1) * Math.sqrt(m)); r.grounded = false; }
+    if (o.up) { r.vy = Math.max(r.vy, o.up * (r.type === 'drone' ? 0.6 : 1) * Math.sqrt(m)); r.grounded = false; r.floaty = false; }
     if (o.spin) { r.spinT = Math.max(r.spinT, o.spin); r.spinDir = Math.random() < 0.5 ? -1 : 1; }
     if (o.tumble) { r.tumbleT = r.tumbleTot = o.tumble; }
     if (o.stun) r.stunT = Math.max(r.stunT, o.stun);
@@ -122,8 +123,8 @@ export class Sim {
     return true;
   }
   respawn(r) {
-    const T = this.T, i = r.idx; r.x = T.px[i]; r.z = T.pz[i]; r.y = r.type === 'drone' ? Math.min(15, T.droneSafeAlt[i]) : 0;
-    r.vx = r.vy = r.vz = 0; r.heading = Math.atan2(T.tz[i], T.tx[i]); r.lat = 0; r.grounded = true; r.groundY = 0;
+    const T = this.T, i = r.idx; r.x = T.px[i]; r.z = T.pz[i]; const g0 = T.groundAt(r.x, r.z); r.y = r.type === 'drone' ? Math.min(15 + g0, T.droneSafeAlt[i]) : g0; r._tg = g0;
+    r.vx = r.vy = r.vz = 0; r.heading = Math.atan2(T.tz[i], T.tx[i]); r.lat = 0; r.grounded = true; r.groundY = g0; r.floaty = false;
     r.spinT = r.tumbleT = r.stunT = 0; r.immuneT = 1.5; r.respawnReq = false;
     this.emit({ type: 'respawn', r });
   }
@@ -190,6 +191,7 @@ export class Sim {
         else vF = Math.max(-c.reverseTop * bf, vF + c.accel * 0.6 * thr * dt);
       } else vF -= Math.sign(vF) * Math.min(Math.abs(vF), c.coastDecel * (power ? 1 : 2.5) * dt);
       if (vF > top) vF -= (vF - top) * 2.5 * dt;
+      vF -= CONFIG.gravity * CONFIG.terrain.slopeAccel * (r.slopeF || 0) * dt; // uphill slows, downhill speeds up
       r.drifting = ctl && Math.abs(steer) > c.driftThreshold && vF > c.topSpeed * c.driftMinSpeed;
       let grip = c.grip * sf.grip * (r.drifting ? c.driftGrip : 1); if (r.spinT > 0) grip = 1.5;
       vL *= Math.exp(-grip * dt);
@@ -203,48 +205,87 @@ export class Sim {
     if (r.spinT > 0) { r.heading += r.spinDir * CONFIG.weapons.hit.spinRate * Math.min(1, r.spinT * 2) * dt; vF *= Math.exp(-1.8 * dt); }
     if (r.tumbleT > 0) { vF *= Math.exp(-1.2 * dt); }
     r.vx = vF * ch - vL * sh; r.vz = vF * sh + vL * ch;
-    if (!r.grounded) { r.vy -= CONFIG.gravity * dt; r.airT += dt; }
+    if (!r.grounded) { r.vy -= CONFIG.gravity * (r.floaty ? CONFIG.terrain.airGravityMul : 1) * dt; r.airT += dt; }
     r.x += r.vx * dt; r.z += r.vz * dt; r.y += r.vy * dt;
     if (!r.onPad) r.battery -= (c.batteryDrainBase + c.batteryDrainThrottle * Math.max(0, thr)) * dt * (this.running ? 1 : 0);
   }
-  // floor / obstacle-top support, landing detection
+  // floor / obstacle-top / terrain support: follow ramps & hills, take off when the ground falls away, land
   groundSupport(r, dt) {
-    const c = r.V, rad = c.radius - 2.5; let g = 0; const reach = Math.max(r.y, r._py) + c.stepUp + 0.01;
-    for (const s of this.T.solids) if (s.y1 <= reach && s.y1 > g && r.x + rad > s.x0 && r.x - rad < s.x1 && r.z + rad > s.z0 && r.z - rad < s.z1) g = s.y1;
-    r.groundY = g;
-    if (r.y <= g + 0.01 && r.vy <= 0) {
-      if (!r.grounded) { r.landImpact = Math.min(1, -r.vy / 320); if (r.airT > 0.12) this.emit({ type: 'land', r, impact: r.landImpact }); }
-      r.y = g; r.vy = 0; r.grounded = true; r.airT = 0;
-    } else if (r.y > g + 0.6 || r.vy > 0) r.grounded = false;
-    else { r.y = g; r.vy = 0; r.grounded = true; } // small ledge drop: stick to ground
+    const c = r.V, T = this.T, TC = CONFIG.terrain, rad = c.radius - 2.5, base = Math.max(r.y, r._py);
+    let tg = T.groundAt(r.x, r.z);
+    if (tg > base + TC.maxStep) { // the side of a ramp / garage edge acts like a wall
+      r.x = r._px; r.z = r._pz; if (Math.hypot(r.vx, r.vz) > 60) this.emit({ type: 'bump', r });
+      r.vx *= -0.3; r.vz *= -0.3; r.scrapeT = 0.2; tg = T.groundAt(r.x, r.z);
+    }
+    let g = tg; const reach = base + c.stepUp + 0.01;
+    for (const s of T.solids) if (s.y1 <= reach && s.y1 > g && r.x + rad > s.x0 && r.x - rad < s.x1 && r.z + rad > s.z0 && r.z - rad < s.z1) g = s.y1;
+    const prevTg = r._tg ?? tg; r._tg = tg; r.groundY = g;
+    const ch = Math.cos(r.heading), sh = Math.sin(r.heading);
+    r.slopeF = g > tg + 0.01 ? 0 : clamp((T.groundAt(r.x + ch * 2.5, r.z + sh * 2.5) - T.groundAt(r.x - ch * 2.5, r.z - sh * 2.5)) / 5, -0.7, 0.7);
+    if (!r.grounded) {
+      if (r.y <= g + 0.01) {
+        if (r.vy <= 0) {
+          r.landImpact = Math.min(1, -r.vy / 320); if (r.airT > 0.12) this.emit({ type: 'land', r, impact: r.landImpact });
+          r.y = g; r.vy = 0; r.grounded = true; r.airT = 0; r.floaty = false;
+        } else r.y = g; // still rising but the slope rises faster: ride up on it
+      }
+      return;
+    }
+    const G = CONFIG.gravity;
+    if (r.y > g + 0.05 + 0.5 * G * dt * dt) { // ground dropped away faster than gravity can follow → airborne
+      r.grounded = false; r.floaty = true; r.airT = 0;
+      if (r.vy > 12) { const f = T.featureAt(r._px, r._pz); const k = f ? (f.kind === 'bump' ? TC.hillKick : (f.kick ?? 1) * TC.rampKick) : 1; r.vy *= k; if (f && f.kind === 'ramp') this.emit({ type: 'launch', r, f }); }
+      return;
+    }
+    const rate = g > tg + 0.01 ? 0 : (tg - prevTg) / dt;
+    r.y = g; r.vy = clamp(rate, -300, 420);
   }
   droneStep(r, dt) {
-    const d = r.V, sf = CONFIG.surfaces[r.surface].drone, bf = battFactor(r.battery), inp = r.input;
+    const d = r.V, T = this.T, sf = CONFIG.surfaces[r.surface].drone, bf = battFactor(r.battery), inp = r.input;
+    const FA = CONFIG.flyerAssist || {}, as = clamp(FA.level ?? 0, 0, 1), pilot = r.isPlayer && !r.autopilot && !r.finished && as > 0;
     if (this.running) r.spool = Math.min(1, r.spool + dt / d.spoolTime);
     const ctl = r.controllable, power = ctl && r.stunT <= 0;
+    const gnd = T.groundAt(r.x, r.z); r.groundY = gnd;
+    let altIn = clamp(inp.alt, -1, 1), steerIn = ctl ? clamp(inp.steer, -1, 1) : 0;
+    if (pilot) { // ---- pilot assist (human flyers only; AI pilots itself) ----
+      steerIn *= 1 - FA.yawExpo * as * (1 - Math.abs(steerIn));
+      const safe = T.droneSafeAlt[r.idx];
+      let want = Math.min(T.gndAhead[r.idx] + FA.cruiseAlt, safe);
+      for (const p of T.pads) if (r.battery < 92 && Math.hypot(p.x - r.x, p.z - r.z) < 26) want = gnd; // auto-land on a charging pad
+      if (FA.autoAltitude && Math.abs(altIn) < 0.12) { if (this.running) altIn = clamp(((want - r.y) / 7 - r.vy / 50) * as + altIn * (1 - as), -1, 1); }
+      else if (FA.ceilingGuard && altIn > 0 && r.y > safe - 3) altIn = Math.min(altIn, clamp((safe - r.y) / 6, -1, 1) * as + altIn * (1 - as));
+      r.assistAlt = want;
+      if (Math.abs(steerIn) < 0.15 && r.y - gnd > d.takeoffAltitude && FA.headingAssist) {
+        const ti = (r.idx + Math.round((28 + r.speed * 0.3) / T.ds)) % T.N;
+        const tx = T.px[ti] + T.nx[ti] * T.droneLine[ti] * 0.5, tz = T.pz[ti] + T.nz[ti] * T.droneLine[ti] * 0.5;
+        const err = wrapA(Math.atan2(tz - r.z, tx - r.x) - r.heading);
+        if (Math.abs(err) < 1.4) r.heading += clamp(err, -0.6, 0.6) * FA.headingAssist * as * dt;
+      }
+    }
     if (ctl && inp.jump && r.jumpCD <= 0) { r.vy = Math.max(r.vy, d.hopV); r.jumpCD = 0.6; this.emit({ type: 'jump', r }); }
+    const wob = (d.hoverWobble || 0) * (1 - (FA.wobbleCut || 0) * as);
     if (power) {
-      let tv = clamp(inp.alt, -1, 1) * d.climbRate * r.spool;
-      if (d.hoverWobble && r.y > d.takeoffAltitude) { r._wob = (r._wob || 0) + (Math.random() - 0.5) * 6 * dt; r._wob *= Math.exp(-0.8 * dt); tv += clamp(r._wob, -1, 1) * d.hoverWobble - Math.abs(r.tiltP || 0) * d.hoverWobble * 0.6; }
+      let tv = altIn * d.climbRate * r.spool;
+      if (wob && r.y - gnd > d.takeoffAltitude) { r._wob = (r._wob || 0) + (Math.random() - 0.5) * 6 * dt; r._wob *= Math.exp(-0.8 * dt); tv += clamp(r._wob, -1, 1) * wob - Math.abs(r.tiltP || 0) * wob * 0.6; }
       r.vy += (tv - r.vy) * Math.min(1, d.climbResponse * dt);
     }
     else if (r.stunT > 0) r.vy -= CONFIG.weapons.zap.droneDrop * 2 * dt;   // power cut: drops
     else r.vy += (-8 - r.vy) * Math.min(1, 1.2 * dt);                       // tumbling: floaty sink
     r.y += r.vy * dt;
-    if (r.y <= 0) { r.y = 0; if (r.vy < 0) r.vy = 0; }
-    if (r.y > CONFIG.maxAltitude) { r.y = CONFIG.maxAltitude; if (r.vy > 0) r.vy = 0; }
-    const air = r.y > d.takeoffAltitude;
+    if (r.y <= gnd) { r.y = gnd; if (r.vy < 0) r.vy = 0; }
+    if (r.y > CONFIG.maxAltitude + gnd) { r.y = CONFIG.maxAltitude + gnd; if (r.vy > 0) r.vy = 0; }
+    const air = r.y - gnd > d.takeoffAltitude;
     const ch = Math.cos(r.heading), sh = Math.sin(r.heading);
     let pitch = power ? (r.turboT > 0 ? 1 : clamp(inp.pitch, -1, 1)) : 0;
-    if (d.tiltResponse > 0) { r.tiltP = (r.tiltP || 0) + (pitch - (r.tiltP || 0)) * Math.min(1, d.tiltResponse * dt); pitch = r.tiltP; } // rotor disc tilts first, then thrust follows
+    if (d.tiltResponse > 0) { r.tiltP = (r.tiltP || 0) + (pitch - (r.tiltP || 0)) * Math.min(1, d.tiltResponse * (1 + (FA.tiltBoost || 0) * as) * dt); pitch = r.tiltP; } // rotor disc tilts first, then thrust follows
     const a = pitch * d.thrust * sf.accel * bf * r.spool * (air ? 1 : 0.12) * sf.speed * (r.turboT > 0 ? CONFIG.weapons.turbo.droneThrustMul : 1);
     r.vx += ch * a * dt; r.vz += sh * a * dt;
-    const dr = Math.exp(-d.drag * dt); r.vx *= dr; r.vz *= dr;
+    const dr = Math.exp(-(d.drag + (Math.abs(pitch) < 0.1 ? (FA.brakeDrag || 0) * as : 0)) * dt); r.vx *= dr; r.vz *= dr;
     let vF = r.vx * ch + r.vz * sh, vL = -r.vx * sh + r.vz * ch;
-    vL *= Math.exp(-d.lateralDamp * dt);
+    vL *= Math.exp(-(d.lateralDamp + (FA.extraLateralDamp || 0) * as) * dt);
     if (!air) { const g = Math.exp(-d.groundFriction * dt); vF *= g; vL *= g; }
     r.vx = vF * ch - vL * sh; r.vz = vF * sh + vL * ch;
-    r.heading += (ctl ? clamp(inp.steer, -1, 1) : 0) * d.yawRate * Math.max(0.3, r.spool) * dt;
+    r.heading += steerIn * d.yawRate * Math.max(0.3, r.spool) * dt;
     if (r.spinT > 0) r.heading += r.spinDir * CONFIG.weapons.hit.spinRate * 0.8 * Math.min(1, r.spinT * 2) * dt;
     r.x += r.vx * dt; r.z += r.vz * dt;
     if (!r.onPad && this.running) r.battery -= (d.batteryDrainBase * r.spool + d.batteryDrainThrust * Math.abs(pitch) + d.batteryDrainClimb * Math.max(0, inp.alt)) * dt;
@@ -272,7 +313,7 @@ export class Sim {
     const i = pr.idx, hwT = T.halfW[i], inner = hwT - V.halfWidth;
     let maxL = inner, minL = 0;
     if (r.type === 'drone') {
-      const m = CONFIG.droneShortcutMargin * T.marginF[i]; const high = r.y > CONFIG.barrierHeight + 0.5;
+      const m = CONFIG.droneShortcutMargin * T.marginF[i]; const high = r.y - (r.groundY || 0) > CONFIG.barrierHeight + 0.5;
       if (high) maxL = inner + m;
       else if (Math.abs(r._lat) > hwT + 1 && hwT + 3 + V.halfWidth <= inner + m) { maxL = inner + m; minL = hwT + 3 + V.halfWidth; }
     }
@@ -299,7 +340,7 @@ export class Sim {
     }
     r.progress += T.wrapS(sNew - sPrev);
     r.idx = pr.idx; r.s = sNew; r.lat = pr.lat;
-    r.section = T.section[r.idx]; if (this.running && !r.finished) { r.secT = r.secT || {}; r.secT[r.section] = (r.secT[r.section] || 0) + dt; r.maxSp = r.maxSp||{}; r.maxSp[r.section] = Math.max(r.maxSp[r.section]||0, r.speed); } r.surface = r.z > 903 ? 'grass' : 'tile';
+    r.section = T.section[r.idx]; if (this.running && !r.finished) { r.secT = r.secT || {}; r.secT[r.section] = (r.secT[r.section] || 0) + dt; r.maxSp = r.maxSp||{}; r.maxSp[r.section] = Math.max(r.maxSp[r.section]||0, r.speed); } r.surface = T.surfaceAt(r.x, r.z, r.idx);
     // pads
     r.onPad = false;
     for (const p of T.pads) if (Math.hypot(p.x - r.x, p.z - r.z) < B.padRadius && r.y < B.padMaxAltitude) {

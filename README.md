@@ -1,6 +1,6 @@
-# Tiny Zoom – RC toy racing v2
+# Tiny Zoom – RC toy racing v3
 
-Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen and garden, with jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
+Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
 
@@ -13,7 +13,10 @@ Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765
 | 🛸 RC Drone | flyer | hovers precisely, flies over small obstacles, needs ⚡ charging |
 | 🚁 RC Helicopter | flyer | rotor disc tilts first (lag), faster forward flight, heavy momentum, wobbly hover, needs ⚡ |
 
-Flyers must still pass *under* every checkpoint gate and respect ceilings/battery, so they're a few seconds slower than ground vehicles in AI-vs-AI sims (shortcuts reward skilled pilots).
+Flyers must still pass *under* every checkpoint gate, go *through* the drain-pipe tunnel and the doghouse, and respect ceilings/battery, so they're ~5–8 s/lap slower than ground vehicles in AI-vs-AI sims (corner-cutting over the rolling hills rewards skilled pilots).
+
+### Flight assist (drone + helicopter)
+`CONFIG.flyerAssist` (level 0–1, default 0.85): left stick centred = auto altitude hold that follows the hills and ducks under the next gate / table / tunnel ceiling; climbing is softly capped below ceilings; when you don't steer the nose eases toward the track direction; yaw expo for fine corrections; extra lateral damping + air-brake (no more sliding); helicopter rotor-tilt lag and hover wobble reduced; auto-lands over a ⚡ pad when the battery isn't full. Turn it down with `?cfg={"flyerAssist":{"level":0}}`.
 
 ## Jump
 Ground vehicles jump (JUMP button / Space) – hop over small obstacles (≤12 cm) and land with squash & suspension bounce. AI cars hop obstacles automatically and sometimes just for fun. Flyers: JUMP = quick upward HOP.
@@ -30,8 +33,16 @@ Drive through a glowing **?** box (they respawn after 4 s): the HUD slot rolls s
 - 🛢️ **Oil Slick** – dropped behind; ground racers (and low-skimming flyers) spin out.
 - 🥊 **Spring Glove** – boing! punches the racer in front.
 
-## Track "From the Kitchen to the Garden" (~54 m, ~47–50 s/lap ground)
-1. Kitchen tile floor (start/finish, recharge pad). 2. Under the dining table – chair legs, low ceiling. 3. Pet door – 30 cm wide × 26 cm high. 4. Garden – grass slows ground vehicles (per-vehicle), flyers unaffected. 5. Back home along the west wall. 10 checkpoint gates (no flying over them).
+## Track "From the Kitchen to the Garden" XL (~88 m, ~77–82 s/lap ground, ~83–88 s flyers)
+1. **Kitchen Floor** – tiles, start/finish, ⚡ pad. 2. **Under the Table** – chair legs, low ceiling. 3. **Pet Door** – 30 × 26 cm flap.
+4. **The Lawn** – grass slows ground vehicles, ⚡ pad, kicker ramp. 5. **Sandbox Tunnel** – a drain pipe through a sand hill; 22 cm ceiling, gates at both ends: flyers can't go over the hill.
+6. **Rolling Hills** – five bumps on the grass (ground vehicles catch air over the crests), ⚡ pad; flyers get extra room to cut the corners (risky shortcut: far from the next pad).
+7. **Toy Town** – play-mat road between toy houses (narrow alleys, no flyer shortcut): kicker ramp → **garage-roof shortcut** (ramp up onto a toy garage, skipping the mud patch) → ⚡ pad → **BIG JUMP** over the puddle (puddles/mud slow ground vehicles).
+8. **Gnome Garden & Home** – gnome village, through the **doghouse** (40 cm roof), ⚡ pad, back in through the sliding door, up the west wall.
+15 checkpoint gates (no flying over them), 11 rows of ? boxes, 5 charging pads.
+
+### Terrain physics
+Ground vehicles follow terrain height (ramps, hills, garage roof), slopes slow you uphill / speed you up downhill, and when the ground falls away faster than gravity (ramp lips, hill crests) the car becomes airborne with a per-ramp take-off kick and floaty arcade air, then lands with suspension squash. Ramp sides act like walls. Tunables: `CONFIG.terrain`; ramps/hills/puddles live in `FEATURES` in `js/track.js`.
 
 ## Controls
 Touch (landscape, RC-transmitter sticks; touch anywhere on the left/right half), plus round **FIRE** (left, inside the stick) and **JUMP/HOP** (right, inside the stick) buttons:
@@ -40,14 +51,14 @@ Touch (landscape, RC-transmitter sticks; touch anywhere on the left/right half),
 Keyboard: W/S or ↑/↓ throttle / forward-back; A/D or ←/→ steer/yaw; Space = jump (ground) / up (flyers); E up, Shift/Q down; F fire; R reset to track; Esc/P pause; Enter start.
 
 ## Tuning
-All balance values live in `js/config.js` (`CONFIG`): `vehicles` (physics classes), `models` (the 5 vehicles' overrides), `weapons` (box layout, roll time, weights, every weapon's strength/duration), `ai`, `camera` (incl. speed/turbo FOV). Runtime override: `?cfg={"weapons":{"enabled":false}}`.
+All balance values live in `js/config.js` (`CONFIG`): `terrain`, `flyerAssist`, `sectionFlyMargin`, `vehicles` (physics classes), `models` (the 5 vehicles' overrides), `weapons` (box layout, roll time, weights, every weapon's strength/duration), `ai`, `camera` (incl. speed/turbo FOV). Runtime override: `?cfg={"weapons":{"enabled":false}}`.
 Debug URL params: `?autostart=racecar|moto|scooter|drone|heli`, `&autopilot=1`, `&speed=4`, `&laps=1`.
 Console: `__rc.simulateRace('heli', 500, {weapons:true})` → headless race results; `__rc.give('bomb')`, `__rc.fire()`.
 
 ## Code
-`js/sim.js` physics + AI, `js/weapons.js` boxes/weapons logic (headless-safe), `js/fx.js` weapon/particle visuals, `js/vehicles.js` the 5 models, `js/track.js`, `js/world.js`, `js/input.js`, `js/main.js`.
+`js/sim.js` physics + AI, `js/weapons.js` boxes/weapons logic (headless-safe), `js/fx.js` weapon/particle visuals, `js/vehicles.js` the 5 models, `js/track.js` (centerline, gates, pads, terrain FEATURES, tunnel/doghouse, AI lines), `js/world.js` (scenery; small parts merged into vertex-coloured batches for few draw calls), `js/input.js`, `js/main.js`.
 
 ## Tests (need playwright + Chrome; serve on :8765 first)
-- `tests/sim_test.py` – headless balance sim for all 5 vehicles.
-- `tests/weapons_test.py` – every weapon vs an AI car and an AI drone, box pickup/roll/respawn, jumps, obstacle hop, bomb passing.
-- `tests/ui_test.py [url] [outdir]` – 844×390 touch: menu → race, sticks, JUMP/FIRE buttons, pickup, weapon effects, heli flight, finish; writes screenshots.
+- `tests/sim_test.py` – headless balance sim for all 5 vehicles; fails if anyone doesn't finish, lap out of range, or flyers out-lap ground vehicles.
+- `tests/weapons_test.py` – every weapon vs an AI car and an AI drone, box pickup/roll/respawn, jumps, obstacle hop, bomb passing; terrain: every ramp launches all 3 ground vehicles, hills give air, garage-roof shortcut, tunnel blocks high flyers / lets low ones through / ceiling holds.
+- `tests/ui_test.py [url] [outdir]` – 844×390 touch: menu → race, sticks, JUMP/FIRE buttons, pickup, weapon effects, heli flight, drone flight assist, tunnel / big jump / toy town / hills, draw calls, finish; writes screenshots (01–14).

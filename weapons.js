@@ -24,13 +24,13 @@ export class Weapons {
     for (const f of C.boxRows) {
       let i = Math.round(f * T.N) % T.N;
       for (let k = 0; k < 60; k++) {
-        const bad = T.section[i] === 3 || T.gates.some(g => Math.abs(T.wrapS(T.s[i] - g.s)) < 30) || T.pads.some(p => Math.abs(T.wrapS(T.s[i] - p.s)) < 35);
+        const bad = T.section[i] === 3 || T.gates.some(g => Math.abs(T.wrapS(T.s[i] - g.s)) < 30) || T.pads.some(p => Math.abs(T.wrapS(T.s[i] - p.s)) < 35) || T.gnd[i] > 0.5 || T.featureAt(T.px[i], T.pz[i]) || T.inPuddle(T.px[i], T.pz[i]);
         if (!bad) break; i = (i + 1) % T.N;
       }
       for (const l of C.boxLat) {
         const lat = l * (T.halfW[i] - 10), x = T.px[i] + T.nx[i] * lat, z = T.pz[i] + T.nz[i] * lat;
         if (T.insideSolid(x, 4, z, 7)) continue;
-        this.boxes.push({ id: uid++, x, z, y: 6, active: true, t: 0, s: T.s[i] });
+        this.boxes.push({ id: uid++, x, z, y: 6 + T.groundAt(x, z), active: true, t: 0, s: T.s[i] });
       }
     }
   }
@@ -49,7 +49,7 @@ export class Weapons {
       else if (r.weapon) r.holdT += dt;
       if (S.running && !r.weapon && r.rollT <= 0) {
         const maxY = r.type === 'drone' ? C.droneCollectAlt : 22, rad = C.boxRadius + r.V.radius * 0.4;
-        for (const b of this.boxes) if (b.active && r.y < maxY && Math.abs(b.x - r.x) < rad && Math.abs(b.z - r.z) < rad && Math.hypot(b.x - r.x, b.z - r.z) < rad) {
+        for (const b of this.boxes) if (b.active && r.y - b.y + 6 < maxY && Math.abs(b.x - r.x) < rad && Math.abs(b.z - r.z) < rad && Math.hypot(b.x - r.x, b.z - r.z) < rad) {
           b.active = false; b.t = C.boxRespawn; r.rollT = C.rollTime; r.rollPick = this.pick(); S.emit({ type: 'pickup', r, b }); break;
         }
       }
@@ -92,7 +92,7 @@ export class Weapons {
         }
         S.emit({ type: 'shock', x: r.x, y: r.y, z: r.z, R: Rr, r }); break;
       }
-      case 'oil': this.haz.push({ id: uid++, kind: 'oil', x: r.x - c * 14, z: r.z - s * 14, y: 0, life: C.oil.life, age: 0, owner: r, R: C.oil.radius }); S.emit({ type: 'drop', r }); break;
+      case 'oil': this.haz.push({ id: uid++, kind: 'oil', x: r.x - c * 14, z: r.z - s * 14, y: this.T.groundAt(r.x - c * 14, r.z - s * 14), life: C.oil.life, age: 0, owner: r, R: C.oil.radius }); S.emit({ type: 'drop', r }); break;
       case 'zap': {
         const pts = [r], hitSet = new Set([r]); let cur = r;
         for (let k = 0; k < C.zap.chainMax; k++) {
@@ -121,7 +121,7 @@ export class Weapons {
   fireTick(r, dt) {
     const F = this.C.fire, S = this.sim; r.fireT -= dt; r._patchT -= dt;
     const c = Math.cos(r.heading), s = Math.sin(r.heading);
-    if (r._patchT <= 0) { r._patchT = F.patchEvery; this.haz.push({ id: uid++, kind: 'fire', x: r.x - c * 9, z: r.z - s * 9, y: r.type === 'drone' ? Math.max(0, r.y - 4) : 0, life: F.patchLife, age: 0, owner: r, R: F.patchRadius }); }
+    if (r._patchT <= 0) { r._patchT = F.patchEvery; this.haz.push({ id: uid++, kind: 'fire', x: r.x - c * 9, z: r.z - s * 9, y: r.type === 'drone' ? Math.max(this.T.groundAt(r.x - c * 9, r.z - s * 9), r.y - 4) : this.T.groundAt(r.x - c * 9, r.z - s * 9), life: F.patchLife, age: 0, owner: r, R: F.patchRadius }); }
     for (const o of this.others(r)) {
       const f = this.front(r, o); if (f.d > F.coneReach + o.V.radius || f.cos < 0.82 || Math.abs(o.y - r.y) > 16) continue;
       S.hit(o, { kx: c * 120, kz: s * 120, up: o.type === 'drone' ? F.droneHeat : 40, spin: F.spin, slow: F.slow, by: r, kind: 'fire' });
@@ -130,17 +130,17 @@ export class Weapons {
   hazTick(h, dt) {
     const C = this.C, S = this.sim;
     for (const o of S.racers) {
-      const d = Math.hypot(o.x - h.x, o.z - h.z);
-      if (h.kind === 'oil') { if (d < h.R + 2 && o.y < C.oil.maxAlt && o.speed > 15) S.hit(o, { spin: C.oil.spin, slow: C.oil.slow, by: h.owner, kind: 'oil' }); }
+      const d = Math.hypot(o.x - h.x, o.z - h.z), oy = o.y - (o.groundY || 0);
+      if (h.kind === 'oil') { if (d < h.R + 2 && oy < C.oil.maxAlt && o.speed > 15) S.hit(o, { spin: C.oil.spin, slow: C.oil.slow, by: h.owner, kind: 'oil' }); }
       else if (h.kind === 'fire') {
         if (o === h.owner || d > h.R + o.V.radius * 0.5) continue;
-        if (o.type === 'drone') { if (o.y < C.fire.droneMaxAlt) S.hit(o, { up: C.fire.droneHeat / 0.6, spin: 0.35, slow: 0.85, by: h.owner, kind: 'fire' }); }
-        else if (o.y < 8) S.hit(o, { spin: C.fire.spin, slow: C.fire.slow, up: 50, by: h.owner, kind: 'fire' });
+        if (o.type === 'drone') { if (oy < C.fire.droneMaxAlt) S.hit(o, { up: C.fire.droneHeat / 0.6, spin: 0.35, slow: 0.85, by: h.owner, kind: 'fire' }); }
+        else if (oy < 8) S.hit(o, { spin: C.fire.spin, slow: C.fire.slow, up: 50, by: h.owner, kind: 'fire' });
       } else if (h.kind === 'bomb') {
-        if (h.age > 0.3 && d < 9 + o.V.radius * 0.5 && o.y < 12 && !o.bomb) { o.bomb = { t: C.bomb.fuse * 0.8, passCD: C.bomb.passCooldown, owner: h.owner }; S.emit({ type: 'bombStick', r: o }); return true; }
+        if (h.age > 0.3 && d < 9 + o.V.radius * 0.5 && oy < 12 && !o.bomb) { o.bomb = { t: C.bomb.fuse * 0.8, passCD: C.bomb.passCooldown, owner: h.owner }; S.emit({ type: 'bombStick', r: o }); return true; }
       }
     }
-    if (h.kind === 'bomb' && h.age >= h.life - 0.01) { this.explode(h.x, 2, h.z, h.owner, null); return true; }
+    if (h.kind === 'bomb' && h.age >= h.life - 0.01) { this.explode(h.x, h.y + 2, h.z, h.owner, null); return true; }
     return false;
   }
   explode(x, y, z, owner, holder) {
@@ -181,7 +181,7 @@ export class Weapons {
   ballTick(p, dt) {
     const B = this.C.ball, S = this.sim;
     if (this.move(p, dt, CONFIG.gravity * 0.8)) S.emit({ type: 'ballBounce', p });
-    if (p.y < B.radius) { p.y = B.radius; if (p.vy < 0) p.vy = Math.max(-p.vy * B.bounce, 90); }
+    const gb = this.T.groundAt(p.x, p.z); if (p.y < gb + B.radius) { p.y = gb + B.radius; if (p.vy < 0) p.vy = Math.max(-p.vy * B.bounce, 90); }
     const o = this.hitRacer(p, B.radius);
     if (o) {
       const v = Math.hypot(p.vx, p.vz) || 1;
@@ -197,8 +197,8 @@ export class Weapons {
       let da = want - cur; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
       const na = cur + Math.max(-Rk.turn * dt, Math.min(Rk.turn * dt, da));
       p.vx = Math.cos(na) * Rk.speed; p.vz = Math.sin(na) * Rk.speed; p.vy = (t.y + 4 - p.y) * 4;
-    } else p.vy = (6 - p.y) * 3;
-    const ox = p.x, oz = p.z; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; if (p.y < 2) p.y = 2;
+    } else p.vy = (6 + this.T.groundAt(p.x, p.z) - p.y) * 3;
+    const ox = p.x, oz = p.z; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; { const gr = this.T.groundAt(p.x, p.z) + 2; if (p.y < gr) p.y = gr; }
     if (this.T.insideSolid(p.x, p.y, p.z, 0)) { p.x = ox; p.z = oz; S.emit({ type: 'boom', x: p.x, y: p.y, z: p.z, size: 0.7 }); return true; }
     const o = this.hitRacer(p, 3);
     if (o) {
@@ -213,7 +213,7 @@ export class Weapons {
     this.move(p, dt, CONFIG.gravity);
     const o = this.hitRacer(p, 3);
     if (o && !o.bomb) { o.bomb = { t: B.fuse, passCD: B.passCooldown, owner: p.owner }; S.emit({ type: 'bombStick', r: o }); return true; }
-    if (p.y <= 2 && p.vy < 0) { this.haz.push({ id: uid++, kind: 'bomb', x: p.x, z: p.z, y: 0, life: B.mineLife, age: 0, owner: p.owner, R: 4 }); return true; }
+    const gm = this.T.groundAt(p.x, p.z); if (p.y <= gm + 2 && p.vy < 0) { this.haz.push({ id: uid++, kind: 'bomb', x: p.x, z: p.z, y: gm, life: B.mineLife, age: 0, owner: p.owner, R: 4 }); return true; }
     return false;
   }
   aiThink(r, dt) {
