@@ -15,6 +15,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="speedlines"></div>
 <div id="touchLayer" class="hidden"></div>
 
 <div id="hud" class="hidden">
@@ -27,6 +28,9 @@
   <div id="warn"></div>
   <button id="btnPause" class="hbtn" aria-label="Pause">⏸</button>
   <button id="btnReset" class="hbtn" aria-label="Reset to track">↺</button>
+  <div id="wslot" class="panel empty"><div id="wicon">?</div><div id="wname">No weapon</div></div>
+  <button id="btnFire" class="abtn fire" aria-label="Fire weapon"><b>🎯</b><span>FIRE</span></button>
+  <button id="btnJump" class="abtn jump" aria-label="Jump"><b>⤒</b><span id="lblJump">JUMP</span></button>
   <div id="stickL" class="stick"><div class="lbl" id="lblL">Throttle</div><div class="gimbal"><div class="cross"></div><div class="knob"></div></div></div>
   <div id="stickR" class="stick"><div class="lbl" id="lblR">Steer</div><div class="gimbal"><div class="cross"></div><div class="knob"></div></div></div>
 </div>
@@ -36,8 +40,8 @@
 <div id="menu" class="overlay">
   <div class="menuBox">
     <div class="menuHead">
-      <h1>Tiny Zoom <span class="tag">v1</span></h1>
-      <div class="sub">RC toy racing · tiny vehicles, giant world</div>
+      <h1>Tiny Zoom <span class="tag">v2</span></h1>
+      <div class="sub">RC toy racing · tiny vehicles, giant world · jumps &amp; secret weapons</div>
     </div>
     <div class="menuBody">
       <div class="trackCard">
@@ -49,27 +53,11 @@
           <li><b>Garden &amp; Home</b> – grass that slows cars, then back inside</li>
         </ol>
         <div class="small">3 laps · 3 rivals · pass every checkpoint gate (you can't fly over them)</div>
+        <div class="small wtip">🎁 Grab glowing <b>?</b> boxes for a random secret weapon: 💣 Sticky Bomb · 💨 Nitro Turbo · 🔥 Fire Trail · ⚡ Electrify · 🚀 Rocket · 🔴 Ball · 💥 Shockwave · 🛢️ Oil · 🥊 Glove</div>
       </div>
       <div class="pick">
         <div class="cardTitle">Pick a vehicle:</div>
-        <div class="vehicles">
-          <button class="vcard sel" data-type="car">
-            <div class="vicon">🏎️</div><div class="vname">RC Car</div>
-            <div class="stat"><span>Speed</span><i style="--v:90%"></i></div>
-            <div class="stat"><span>Accel</span><i style="--v:85%"></i></div>
-            <div class="stat"><span>Shortcuts</span><i style="--v:10%"></i></div>
-            <div class="stat"><span>Battery</span><i style="--v:95%"></i></div>
-            <div class="vnote">Fast on tiles, slow on grass</div>
-          </button>
-          <button class="vcard" data-type="drone">
-            <div class="vicon">🚁</div><div class="vname">Drone</div>
-            <div class="stat"><span>Speed</span><i style="--v:68%"></i></div>
-            <div class="stat"><span>Accel</span><i style="--v:45%"></i></div>
-            <div class="stat"><span>Shortcuts</span><i style="--v:80%"></i></div>
-            <div class="stat"><span>Battery</span><i style="--v:35%"></i></div>
-            <div class="vnote">Flies over small obstacles, needs charging ⚡</div>
-          </button>
-        </div>
+        <div class="vehicles" id="vehList"></div>
         <button id="btnStart" class="big">Let's race!</button>
         <button id="btnHelp" class="link">How do I control?</button>
       </div>
@@ -77,10 +65,11 @@
   </div>
   <div id="help" class="hidden">
     <h3>Remote control – two sticks</h3>
-    <p><b>🏎️ Car:</b> Left stick up = throttle, down = brake/reverse. Right stick left/right = steering.</p>
-    <p><b>🚁 Drone:</b> Left stick up/down = altitude (center = hold altitude). Right stick: left/right = yaw, up/down = forward/back.</p>
-    <p><b>⚡ Battery:</b> The drone drains fast. Land low over the blue charging pad to recharge. Low battery = less speed.</p>
-    <p><b>⌨️ Keyboard:</b> W/S or ↑/↓ = throttle / forward-back · A/D or ←/→ = steer · Space/E = up · Shift/Q = down · R = reset to track · Esc = pause</p>
+    <p><b>🏎️🏍️🛴 Ground (race car, motorcycle, scooter):</b> Left stick up = throttle, down = brake/reverse. Right stick left/right = steering. Hard steer at speed = drift. <b>JUMP</b> button hops over small obstacles and barriers.</p>
+    <p><b>🚁 Drone / Helicopter:</b> Left stick up/down = altitude (center = hold). Right stick: left/right = yaw, up/down = forward/back. The helicopter tilts its rotor first, carries more momentum and hovers less steadily. JUMP = quick hop up.</p>
+    <p><b>🎁 Weapons:</b> Drive through a glowing <b>?</b> box – the slot rolls a random weapon. Press <b>FIRE</b> to use it. Hits make racers spin/tumble briefly. A sticky bomb can be passed on by bumping another racer!</p>
+    <p><b>⚡ Battery:</b> Flyers drain fast. Land low over the blue charging pad to recharge. Low battery = less speed.</p>
+    <p><b>⌨️ Keyboard:</b> W/S or ↑/↓ = throttle / forward-back · A/D or ←/→ = steer · Space = jump (ground) / up (flyers) · E up · Shift/Q down · F = fire · R = reset to track · Esc = pause</p>
     <button class="big" id="btnHelpClose">Got it</button>
   </div>
 </div>
@@ -89,7 +78,7 @@
   <button class="big" id="btnResume">Resume</button><button class="big alt" id="btnRestart">New race</button><button class="big alt" id="btnMenu">Menu</button></div></div>
 
 <div id="finish" class="overlay hidden"><div class="dialog wide"><h2 id="finTitle">Finish!</h2>
-  <table id="results"><thead><tr><th>Place</th><th>Driver</th><th>Vehicle</th><th>Total time</th><th>Best lap</th><th>Laps</th></tr></thead><tbody></tbody></table>
+  <table id="results"><thead><tr><th>Place</th><th>Driver</th><th>Vehicle</th><th>Total time</th><th>Best lap</th><th>Laps</th><th>Hits</th></tr></thead><tbody></tbody></table>
   <div id="balance" class="small"></div>
   <div class="row"><button class="big" id="btnAgain">Again!</button><button class="big alt" id="btnMenu2">Menu</button></div></div></div>
 

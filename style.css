@@ -77,3 +77,28 @@ button.link{background:none;border:none;color:#bde0fe;text-decoration:underline;
 #rotate div:first-child{font-size:60px}
 @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
 @media (max-height:420px){h1{font-size:26px}.sub{font-size:11px}.trackCard{font-size:11.5px}button.big{padding:7px;font-size:16px}.vicon{font-size:20px}}
+
+/* v2: weapon slot + action buttons */
+#wslot{top:calc(max(8px,env(safe-area-inset-top)) + 96px);left:max(10px,env(safe-area-inset-left));width:92px;text-align:center;padding:4px 6px;transition:transform .15s}
+#wicon{font-size:30px;line-height:38px;height:38px;filter:drop-shadow(0 2px 2px #000)}
+#wname{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wslot.empty{opacity:.55}#wslot.empty #wicon{color:#bbb}
+#wslot.rolling{border-color:#ffd23f;animation:wshake .12s infinite}
+#wslot.ready{border-color:#52d273;box-shadow:0 0 14px #52d273;transform:scale(1.06)}
+@keyframes wshake{0%{transform:translateX(-1px)}50%{transform:translateX(1px)}}
+.abtn{pointer-events:auto;position:absolute;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 18px);width:76px;height:76px;border-radius:50%;border:3px solid rgba(255,255,255,.75);color:#fff;font:inherit;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 12px rgba(0,0,0,.4);touch-action:none;padding:0;opacity:.9}
+.abtn b{font-size:24px;line-height:26px}.abtn span{font-size:12px;letter-spacing:1px}
+.abtn.fire{left:calc(max(14px,env(safe-area-inset-left)) + 168px);background:radial-gradient(circle at 40% 35%,#ff8a8a,#d00000)}
+.abtn.jump{right:calc(max(14px,env(safe-area-inset-right)) + 168px);background:radial-gradient(circle at 40% 35%,#8ad8ff,#0077b6)}
+.abtn.off{filter:grayscale(.85);opacity:.5}
+.abtn.down{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 rgba(0,0,0,.45)}
+.vehicles{flex-wrap:wrap;gap:5px}
+.vcard{flex:1 1 30%;min-width:0;padding:3px 5px;border-width:2px}
+.vcard .vicon{font-size:20px}.vcard .vname{font-size:11.5px;margin-bottom:1px}
+.vcard .stat{font-size:9.5px;margin:1px 0}.vcard .stat span{width:44px}
+.vcard .vnote{font-size:9px;line-height:1.15}
+.wtip{margin-top:4px;color:#ffe9a8}
+@media (max-height:420px){.vcard .vnote{display:none}.vcard .vicon{font-size:17px}}
+#speedlines{position:fixed;inset:-5%;pointer-events:none;z-index:4;opacity:0;transition:opacity .25s;background:repeating-conic-gradient(from 0deg at 50% 55%,rgba(255,255,255,0) 0deg 5deg,rgba(255,255,255,.55) 5deg 5.5deg,rgba(255,255,255,0) 5.5deg 11deg,rgba(160,230,255,.45) 11deg 11.4deg);-webkit-mask:radial-gradient(circle at 50% 55%,transparent 30%,#000 75%);mask:radial-gradient(circle at 50% 55%,transparent 30%,#000 75%)}
+#speedlines.on{opacity:.85;animation:slz .12s linear infinite}
+@keyframes slz{0%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.05) rotate(1.5deg)}100%{transform:scale(1) rotate(0deg)}}

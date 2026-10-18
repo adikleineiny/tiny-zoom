@@ -161,10 +161,11 @@ export class Track {
     }
     // speed profiles
     const prof = (type) => {
-      const top = type === 'car' ? V.car.topSpeed : V.drone.thrust / V.drone.drag;
+      const VD = type === 'heli' ? { ...V.drone, ...CONFIG.models.heli } : V.drone;
+      const top = type === 'car' ? 1e4 : VD.thrust / VD.drag; // cars: curvature-limited only, each model caps its own top speed
       const v = new Float32Array(N);
       for (let i = 0; i < N; i++) {
-        const sf = CONFIG.surfaces[this.surface[i]][type].speed;
+        const sf = type === 'car' ? 1 : CONFIG.surfaces[this.surface[i]].drone.speed;
         let m = Math.min(top * sf * 0.98, Math.sqrt(A.latAcc[type] / Math.max(Math.abs(this.curv[i]), 1e-5)));
         if (type === 'car') m = Math.min(m, V.car.steerRate * 0.8 / Math.max(Math.abs(this.curv[i]), 1e-5));
         const cap = A.sectionCap[type][this.section[i]]; if (cap) m = Math.min(m, cap);
@@ -174,6 +175,7 @@ export class Track {
       for (let pass = 0; pass < 2; pass++) for (let i = N - 1; i >= 0; i--) { const j = (i + 1) % N; v[i] = Math.min(v[i], Math.sqrt(v[j] * v[j] + 2 * b * ds)); }
       return v;
     };
-    this.carSpeed = prof('car'); this.droneSpeed = prof('drone');
+    this.minorSolids = this.solids.filter(o => o.minor);
+    this.carSpeed = prof('car'); this.droneSpeed = prof('drone'); this.heliSpeed = prof('heli');
   }
 }
