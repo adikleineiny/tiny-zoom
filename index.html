@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Tiny Zoom v3.1 — Toy Racing</title>
+<title>Tiny Zoom v3.2 — Toy Racing</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -29,8 +29,7 @@
   <div id="warn"></div>
   <button id="btnPause" class="hbtn" aria-label="Pause">⏸</button>
   <button id="btnReset" class="hbtn" aria-label="Reset to track">↺</button>
-  <div id="wslot" class="panel empty"><div id="wicon">?</div><div id="wname">No weapon</div></div>
-  <button id="btnFire" class="abtn fire" aria-label="Fire weapon"><b>🎯</b><span>FIRE</span></button>
+  <button id="wslot" class="panel wbtn empty" aria-label="Weapon – tap to fire"><div id="wicon">?</div><div id="wname">Find a ? box</div><div id="wtap">TAP TO FIRE</div></button>
   <button id="btnJump" class="abtn jump" aria-label="Jump"><b>⤒</b><span id="lblJump">JUMP</span></button>
   <div id="stickL" class="stick"><div class="lbl" id="lblL">Throttle</div><div class="gimbal"><div class="cross"></div><div class="knob"></div></div></div>
   <div id="stickR" class="stick"><div class="lbl" id="lblR">Steer</div><div class="gimbal"><div class="cross"></div><div class="knob"></div></div></div>
@@ -41,7 +40,7 @@
 <div id="menu" class="overlay">
   <div class="menuBox">
     <div class="menuHead">
-      <h1>Tiny Zoom <span class="tag">v3.1</span></h1>
+      <h1>Tiny Zoom <span class="tag">v3.2</span></h1>
       <div class="sub">RC toy racing · tiny vehicles, giant world · jumps &amp; secret weapons</div>
     </div>
     <div class="menuBody">
@@ -70,7 +69,7 @@
     <h3>Remote control – two sticks</h3>
     <p><b>🏎️🏍️🛴 Ground (race car, motorcycle, scooter):</b> Left stick up = throttle, down = brake/reverse. Right stick left/right = steering. Hard steer at speed = drift. <b>JUMP</b> button hops over small obstacles and barriers.</p>
     <p><b>🚁 Drone / Helicopter:</b> Left stick up/down = altitude (center = hold). Right stick: left/right = yaw, up/down = forward/back. The helicopter tilts its rotor first, carries more momentum and hovers less steadily. JUMP = quick hop up.</p>
-    <p><b>🎁 Weapons:</b> Drive through a glowing <b>?</b> box – the slot rolls a random weapon. Press <b>FIRE</b> to use it. Hits make racers spin/tumble briefly. A sticky bomb can be passed on by bumping another racer!</p>
+    <p><b>🎁 Weapons:</b> Drive through a glowing <b>?</b> box – the weapon slot (bottom left, next to the left stick) rolls a random weapon. <b>Tap the slot</b> to fire it (or press F). Hits make racers spin/tumble briefly. A sticky bomb can be passed on by bumping another racer!</p>
     <p><b>🛟 Flight assist:</b> Leave the left stick centred and the drone/helicopter holds a safe height by itself – it follows the hills and ducks under gates, tables and the tunnel. Not steering? The nose gently lines up with the track. Over a ⚡ pad it lands to charge.</p>
     <p><b>⚡ Battery:</b> Flyers drain fast. Land low over a blue charging pad to recharge (5 along the track). Low battery = less speed.</p>
     <p><b>⌨️ Keyboard:</b> W/S or ↑/↓ = throttle / forward-back · A/D or ←/→ = steer · Space = jump (ground) / up (flyers) · E up · Shift/Q down · F = fire · R = reset to track · Esc = pause</p>

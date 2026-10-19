@@ -37,7 +37,7 @@ export class Input {
     // action buttons (sit above the touch layer, between the two stick zones)
     const btn = (id, on, off) => { const el = document.getElementById(id); if (el) this.btns[id] = { el, ids: new Set(), on, off }; };
     btn('btnJump', () => { this.jumpHeld = true; }, () => { this.jumpHeld = false; });
-    btn('btnFire', () => { this.fireQueued = true; });
+    btn('wslot', () => { this.fireQueued = true; }); // v3.2: the weapon slot is the FIRE button
     if (this.useTouch) this.bindTouch();
     this.bindPointer();
   }
@@ -46,7 +46,7 @@ export class Input {
   // ---------- shared ----------
   stickOf(id) { for (const k of ['L', 'R']) if (this.sticks[k].id === id) return this.sticks[k]; return null; }
   releaseStick(st) { if (st.id !== null) this.stats.released++; st.id = null; st.x = st.y = 0; }
-  pressBtn(name, id) { const b = this.btns[name]; if (!b) return; const was = b.ids.size; b.ids.add(id); b.el.classList.add('down'); if (!was || name === 'btnFire') b.on(); }
+  pressBtn(name, id) { const b = this.btns[name]; if (!b) return; const was = b.ids.size; b.ids.add(id); b.el.classList.add('down'); if (!was || name === 'wslot') b.on(); }
   releaseBtnId(id) {
     for (const b of Object.values(this.btns)) if (b.ids.delete(id) && !b.ids.size) { b.el.classList.remove('down'); b.off && b.off(); }
   }
@@ -57,7 +57,7 @@ export class Input {
     this.jumpHeld = false; this.active.clear(); this.dead.clear(); this.keys.clear();
     this.renderSticks();
   }
-  // which on-screen control is under a point: 'btnFire' | 'btnJump' | 'hbtn' | null
+  // which on-screen control is under a point: 'wslot' (fire) | 'btnJump' | 'hbtn' | null
   controlAt(x, y) {
     for (const [name, b] of Object.entries(this.btns)) { const r = b.el.getBoundingClientRect(); if (r.width && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return name; }
     for (const el of document.querySelectorAll('#hud .hbtn')) { const r = el.getBoundingClientRect(); if (r.width && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return 'hbtn'; }
@@ -96,7 +96,7 @@ export class Input {
       for (const t of e.changedTouches) {
         const id = t.identifier, tgt = t.target && t.target.closest ? t.target : null;
         if (tgt && tgt.closest('#hud .hbtn')) continue;                        // pause / reset: native click
-        const bt = tgt && tgt.closest('.abtn');
+        const bt = tgt && tgt.closest('.abtn, #wslot');
         if (bt && this.btns[bt.id]) { this.releaseId(id); this.pressBtn(bt.id, id); e.preventDefault(); continue; }
         if (!game) continue;
         if (tgt && !(tgt === this.layer || tgt.closest('#hud') || tgt.id === 'c')) continue;
@@ -115,7 +115,7 @@ export class Input {
       for (const t of e.changedTouches) { this.active.delete(t.identifier); this.releaseId(t.identifier); }
       reconcile();
       if (e.touches.length === 0) { for (const k of ['L', 'R']) this.releaseStick(this.sticks[k]); for (const b of Object.values(this.btns)) for (const id of [...b.ids]) this.releaseBtnId(id); this.dead.clear(); }
-      const tg = e.target; if (this.inGame() && e.cancelable && (tg === this.layer || tg?.closest?.('.abtn'))) e.preventDefault(); // no synthetic clicks / double-tap zoom
+      const tg = e.target; if (this.inGame() && e.cancelable && (tg === this.layer || tg?.closest?.('.abtn, #wslot'))) e.preventDefault(); // no synthetic clicks / double-tap zoom
     };
     document.addEventListener('touchend', end, opt); document.addEventListener('touchcancel', end, opt);
   }

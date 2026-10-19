@@ -1,8 +1,11 @@
-# Tiny Zoom – RC toy racing v3.1
+# Tiny Zoom – RC toy racing v3.2
 
 Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
+
+## v3.2 – tap the weapon slot to fire
+The mystery-box weapon slot is now the FIRE button: a big 108×100 thumb button at the bottom left, right of the left stick (no overlap). It glows and pulses with "TAP TO FIRE" when a weapon is ready and shows a pressed state. The separate red FIRE button is gone; F still fires. It uses the same finger tracking as the sticks: a stick finger sliding onto it releases the stick and does not fire.
 
 ## v3.1 – never stuck, robust touch
 - **Touch (iOS Safari)**: sticks are tracked by `Touch.identifier` (Touch Events; pointer events only for mouse/pen). Every touchstart/touchend/touchcancel re-checks `e.touches` and releases any stick/button whose finger is gone; a stale stick slot is reclaimed by a new finger; sliding off-screen or onto FIRE/JUMP/pause/reset releases the stick; blur / visibilitychange / pagehide / orientationchange / pause release everything; a 300 ms watchdog zeroes a stick that gets no events and is not in the active touch list. iOS gestures, callouts, selection, double-tap zoom are blocked.
@@ -29,7 +32,7 @@ Flyers must still pass *under* every checkpoint gate, go *through* the drain-pip
 Ground vehicles jump (JUMP button / Space) – hop over small obstacles (≤12 cm) and land with squash & suspension bounce. AI cars hop obstacles automatically and sometimes just for fun. Flyers: JUMP = quick upward HOP.
 
 ## Secret weapons
-Drive through a glowing **?** box (they respawn after 4 s): the HUD slot rolls slot-machine style and gives a random weapon (hold one at a time, FIRE / F to use). Hits are short (≤1.1 s) and followed by 1.4 s immunity, so nobody gets stun-locked. Every weapon also works against flyers.
+Drive through a glowing **?** box (they respawn after 4 s): the HUD slot rolls slot-machine style and gives a random weapon (hold one at a time, tap the slot / F to use). Hits are short (≤1.1 s) and followed by 1.4 s immunity, so nobody gets stun-locked. Every weapon also works against flyers.
 - 💣 **Sticky Bomb** – lobbed; sticks to a racer and beeps faster and faster. Bump another racer to pass it on before it blows (misses become a floor mine).
 - 💨 **Nitro Turbo** – big speed boost with flame trail, FOV kick & speed lines; anyone you ram gets knocked aside.
 - 🔥 **Fire Trail** – short flamethrower ahead + burning trail behind: cars spin out, flyers get thrown up by the heat.
@@ -52,7 +55,7 @@ Drive through a glowing **?** box (they respawn after 4 s): the HUD slot rolls s
 Ground vehicles follow terrain height (ramps, hills, garage roof), slopes slow you uphill / speed you up downhill, and when the ground falls away faster than gravity (ramp lips, hill crests) the car becomes airborne with a per-ramp take-off kick and floaty arcade air, then lands with suspension squash. Ramp sides act like walls. Tunables: `CONFIG.terrain`; ramps/hills/puddles live in `FEATURES` in `js/track.js`.
 
 ## Controls
-Touch (landscape, RC-transmitter sticks; touch anywhere on the left/right half), plus round **FIRE** (left, inside the stick) and **JUMP/HOP** (right, inside the stick) buttons:
+Touch (landscape, RC-transmitter sticks; touch anywhere on the left/right half), plus the **weapon slot = FIRE** button (bottom left, next to the left stick) and the round **JUMP/HOP** button (right, inside the stick):
 - Ground: left stick ↑ throttle / ↓ brake-reverse; right stick ↔ steering.
 - Flyers: left stick ↑↓ altitude (center = hold); right stick ↔ yaw, ↑↓ forward/back.
 Keyboard: W/S or ↑/↓ throttle / forward-back; A/D or ←/→ steer/yaw; Space = jump (ground) / up (flyers); E up, Shift/Q down; F fire; R reset to track; Esc/P pause; Enter start.
@@ -68,4 +71,4 @@ Console: `__rc.simulateRace('heli', 500, {weapons:true})` → headless race resu
 ## Tests (need playwright + Chrome; serve on :8765 first)
 - `tests/sim_test.py` – headless balance sim for all 5 vehicles; fails if anyone doesn't finish, lap out of range, or flyers out-lap ground vehicles.
 - `tests/weapons_test.py` – every weapon vs an AI car and an AI drone, box pickup/roll/respawn, jumps, obstacle hop, bomb passing; terrain: every ramp launches all 3 ground vehicles, hills give air, garage-roof shortcut, tunnel blocks high flyers / lets low ones through / ceiling holds.
-- `tests/ui_test.py [url] [outdir]` – 844×390 touch: menu → race, sticks, JUMP/FIRE buttons, pickup, weapon effects, heli flight, drone flight assist, tunnel / big jump / toy town / hills, draw calls, finish; writes screenshots (01–14).
+- `tests/ui_test.py [url] [outdir]` – 844×390 touch: menu → race, sticks, JUMP button + tap-the-slot FIRE, pickup, weapon effects, heli flight, drone flight assist, tunnel / big jump / toy town / hills, draw calls, finish; writes screenshots (01–14).

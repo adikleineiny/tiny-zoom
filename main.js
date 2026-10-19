@@ -187,8 +187,7 @@ function updateSlot(dt) {
     icon = WEAPONS[slotShown]?.icon || '?'; name = 'Rolling…';
   } else if (player.weapon) { cls = 'ready'; icon = WEAPONS[player.weapon].icon; name = WEAPONS[player.weapon].name; }
   else { cls = 'empty'; icon = '?'; name = 'Find a ? box'; }
-  if (el.dataset.c !== cls + icon) { el.dataset.c = cls + icon; el.className = 'panel ' + cls; $('wicon').textContent = icon; $('wname').textContent = name; }
-  $('btnFire').classList.toggle('off', !player.weapon);
+  if (el.dataset.c !== cls + icon) { el.dataset.c = cls + icon; el.className = 'panel wbtn ' + cls + (el.classList.contains('down') ? ' down' : ''); /* keep the pressed state */ $('wicon').textContent = icon; $('wname').textContent = name; }
 }
 function hudEvents() {
   if (!player) return;

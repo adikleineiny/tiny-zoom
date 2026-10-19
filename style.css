@@ -79,16 +79,22 @@ button.link{background:none;border:none;color:#bde0fe;text-decoration:underline;
 @media (max-height:420px){h1{font-size:26px}.sub{font-size:11px}.trackCard{font-size:11.5px}button.big{padding:7px;font-size:16px}.vicon{font-size:20px}}
 
 /* v2: weapon slot + action buttons */
-#wslot{top:calc(max(8px,env(safe-area-inset-top)) + 96px);left:max(10px,env(safe-area-inset-left));width:92px;text-align:center;padding:4px 6px;transition:transform .15s}
-#wicon{font-size:30px;line-height:38px;height:38px;filter:drop-shadow(0 2px 2px #000)}
-#wname{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#wslot.empty{opacity:.55}#wslot.empty #wicon{color:#bbb}
+/* v3.2: the weapon slot IS the fire button – bottom left, right of the left stick, thumb-sized */
+#wslot{pointer-events:auto;top:auto;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 12px);left:calc(max(14px,env(safe-area-inset-left)) + 166px);width:108px;height:100px;box-sizing:border-box;
+  text-align:center;padding:6px 6px 4px;border-radius:20px;border:3px solid rgba(255,255,255,.45);color:#fff;font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 10px rgba(0,0,0,.4);transition:transform .08s,box-shadow .15s,background .15s;touch-action:none;cursor:pointer}
+#wicon{font-size:38px;line-height:44px;height:44px;filter:drop-shadow(0 2px 2px #000);pointer-events:none}
+#wname{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px;pointer-events:none}
+#wtap{font-size:10px;font-weight:900;letter-spacing:1px;opacity:0;height:12px;pointer-events:none}
+#wslot.empty{opacity:.6}#wslot.empty #wicon{color:#bbb}
 #wslot.rolling{border-color:#ffd23f;animation:wshake .12s infinite}
-#wslot.ready{border-color:#52d273;box-shadow:0 0 14px #52d273;transform:scale(1.06)}
+#wslot.ready{opacity:1;border-color:#7dff9a;background:radial-gradient(circle at 50% 35%,rgba(82,210,115,.55),rgba(20,60,40,.85));animation:wpulse 1s ease-in-out infinite}
+#wslot.ready #wtap{opacity:1;color:#d9ffe2}
+#wslot.down{transform:translateY(3px) scale(.93);box-shadow:0 1px 0 rgba(0,0,0,.45),0 0 6px #52d273;animation:none}
+@keyframes wpulse{0%,100%{box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 10px 2px rgba(82,210,115,.7);transform:scale(1)}50%{box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 26px 9px rgba(125,255,154,.95);transform:scale(1.06)}}
 @keyframes wshake{0%{transform:translateX(-1px)}50%{transform:translateX(1px)}}
 .abtn{pointer-events:auto;position:absolute;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 18px);width:76px;height:76px;border-radius:50%;border:3px solid rgba(255,255,255,.75);color:#fff;font:inherit;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 12px rgba(0,0,0,.4);touch-action:none;padding:0;opacity:.9}
 .abtn b{font-size:24px;line-height:26px}.abtn span{font-size:12px;letter-spacing:1px}
-.abtn.fire{left:calc(max(14px,env(safe-area-inset-left)) + 168px);background:radial-gradient(circle at 40% 35%,#ff8a8a,#d00000)}
 .abtn.jump{right:calc(max(14px,env(safe-area-inset-right)) + 168px);background:radial-gradient(circle at 40% 35%,#8ad8ff,#0077b6)}
 .abtn.off{filter:grayscale(.85);opacity:.5}
 .abtn.down{transform:translateY(3px) scale(.95);box-shadow:0 1px 0 rgba(0,0,0,.45)}
@@ -104,7 +110,7 @@ button.link{background:none;border:none;color:#bde0fe;text-decoration:underline;
 @keyframes slz{0%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.05) rotate(1.5deg)}100%{transform:scale(1) rotate(0deg)}}
 
 /* v3.1: iOS touch hardening + rescue fade */
-#touchLayer,#hud,#hud *,.abtn,.hbtn,canvas{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+#touchLayer,#hud,#hud *,.abtn,.hbtn,#wslot,canvas{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
 .hbtn{touch-action:manipulation}
 #rescueFx{position:fixed;inset:0;z-index:7;pointer-events:none;background:radial-gradient(circle at 50% 55%,rgba(255,255,255,0) 20%,rgba(255,255,255,.85) 75%);opacity:0;transition:opacity .25s}
 #rescueFx.on{opacity:1}
