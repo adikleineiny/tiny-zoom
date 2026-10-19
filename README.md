@@ -1,8 +1,15 @@
-# Tiny Zoom – RC toy racing v3
+# Tiny Zoom – RC toy racing v3.1
 
 Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
+
+## v3.1 – never stuck, robust touch
+- **Touch (iOS Safari)**: sticks are tracked by `Touch.identifier` (Touch Events; pointer events only for mouse/pen). Every touchstart/touchend/touchcancel re-checks `e.touches` and releases any stick/button whose finger is gone; a stale stick slot is reclaimed by a new finger; sliding off-screen or onto FIRE/JUMP/pause/reset releases the stick; blur / visibilitychange / pagehide / orientationchange / pause release everything; a 300 ms watchdog zeroes a stick that gets no events and is not in the active touch list. iOS gestures, callouts, selection, double-tap zoom are blocked.
+- **Lakitu rescue** (`CONFIG.rescue`, player + AI, all 5 vehicles): stuck while trying to move (1.6 s), wedged against a prop (4 s), no progress (5 s), wrong way (3.5 s), off track, fallen / inside a solid, flyers pinned at a gate/ceiling → lift + fade, put back on the track ~30 cm behind, facing forward, 1.6 s invulnerable + small boost. Three rescues in a row at the same spot → put past the obstacle. ↺ / R uses the same rescue. HUD hint "Stuck? Rescue coming…".
+- **Collisions**: circle-vs-box push-out (round corners, glancing hits slide, nose-into-wall turns along it), ramp sides slide on one axis, invisible soft boundary steers back before the hard barrier, pet-door opening hitbox 31 cm wide (hidden under the frame) so nothing wedges on the frame.
+- **Camera**: marches from the vehicle to the chase spot and stops before the first wall/door (thin pet-door wall included), never lerps through a wall.
+- Tests: `tests/touch_test.py` (CDP multi-touch, touchcancel, lost touchend, watchdog, slide onto buttons, blur/pagehide/orientation, fuzz, pet door, camera), `tests/stuck_test.py [url] [seeds]` (random-input bot races ×5 vehicles, no racer still > 3 s, all finish; every solid probed).
 
 ## Vehicles (pick in the menu; AI rivals use them too)
 | Vehicle | Class | Feel |

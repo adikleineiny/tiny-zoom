@@ -110,7 +110,11 @@ export function buildWorld(scene, track, renderer) {
   box(-12, 60, 0, H, T0, T1, wallOut); box(60, 200, 215, H, T0, T1, wallOut); box(200, 340, 0, H, T0, T1, wallOut);
   box(340, 460, 205, H, T0, T1, wallOut); box(460, 1412, 0, H, T0, T1, wallOut);
   const doorM = lam(0x8a5a3b);
-  box(340, 386, 0, 205, 898, 902, doorM); box(414, 460, 0, 205, 898, 902, doorM); box(386, 414, 26, 205, 898, 902, doorM);
+  box(340, 386, 0, 205, 898, 902, doorM, { solid: false }); box(414, 460, 0, 205, 898, 902, doorM, { solid: false }); box(386, 414, 26, 205, 898, 902, doorM, { solid: false });
+  // door collision: the pet-door opening hitbox is a bit wider than the visible hole (hidden under the white frame) so nothing
+  // can wedge on the frame edges; the lateral track limit at the door (halfWidth 15) then always fits inside it.
+  solids.push({ x0: 340, x1: 384.5, y0: 0, y1: 205, z0: 898, z1: 902, petDoor: true }, { x0: 415.5, x1: 460, y0: 0, y1: 205, z0: 898, z1: 902, petDoor: true },
+    { x0: 384.5, x1: 415.5, y0: 26, y1: 205, z0: 898, z1: 902, petDoor: true });
   box(440, 446, 95, 100, 902, 905, lam(0xd4af37), { solid: false }); // door handle
   // pet door frame (white plastic)
   const petM = lam(0xf5f5f5);

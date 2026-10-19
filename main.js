@@ -53,7 +53,7 @@ function setupRace(model, opts = {}) {
 }
 
 function startRace(type = selected, opts = {}) {
-  selected = normSel(type); setupRace(selected, opts);
+  selected = normSel(type); input.releaseAll(); setupRace(selected, opts);
   state = 'countdown'; countdownT = 3.2; acc = 0; lastSec = player.section; finishShownT = -1; slotShown = '';
   $('menu').classList.add('hidden'); $('finish').classList.add('hidden'); $('pause').classList.add('hidden');
   $('hud').classList.remove('hidden'); $('touchLayer').classList.remove('hidden');
@@ -66,6 +66,7 @@ function startDemo() {
   snapCamera();
 }
 function toMenu() {
+  input.releaseAll(); $('rescueFx').classList.remove('on');
   $('menu').classList.remove('hidden'); $('finish').classList.add('hidden'); $('pause').classList.add('hidden');
   $('hud').classList.add('hidden'); $('touchLayer').classList.add('hidden'); $('countdown').textContent = ''; $('speedlines').classList.remove('on'); speedOn = false;
   startDemo();
@@ -87,8 +88,8 @@ function goFullscreen() {
 $('btnStart').addEventListener('click', () => { goFullscreen(); startRace(selected); });
 $('btnHelp').addEventListener('click', () => $('help').classList.remove('hidden'));
 $('btnHelpClose').addEventListener('click', () => $('help').classList.add('hidden'));
-const pause = () => { if (state === 'race' || state === 'countdown') { state = 'paused:' + state; $('pause').classList.remove('hidden'); } };
-const resume = () => { if (state.startsWith('paused:')) { state = state.slice(7); $('pause').classList.add('hidden'); } };
+const pause = () => { input.releaseAll(); if (state === 'race' || state === 'countdown') { state = 'paused:' + state; $('pause').classList.remove('hidden'); } };
+const resume = () => { input.releaseAll(); if (state.startsWith('paused:')) { state = state.slice(7); $('pause').classList.add('hidden'); } };
 $('btnPause').addEventListener('click', pause); $('btnResume').addEventListener('click', resume);
 $('btnRestart').addEventListener('click', () => startRace(selected)); $('btnAgain').addEventListener('click', () => startRace(selected));
 $('btnMenu').addEventListener('click', toMenu); $('btnMenu2').addEventListener('click', toMenu);
@@ -98,14 +99,35 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') resetPlayer();
   if (e.code === 'Enter' && state === 'menu' && $('help').classList.contains('hidden')) startRace(selected);
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+document.addEventListener('visibilitychange', () => { input.releaseAll(); if (document.hidden) pause(); });
+addEventListener('pagehide', () => { input.releaseAll(); pause(); });
+addEventListener('blur', () => input.releaseAll());
 
-function resetPlayer() { if (player && state === 'race') sim.respawn(player); }
+// manual reset (↺ / R) = the same Lakitu-style rescue as the automatic one
+function resetPlayer() { if (player && state === 'race') { if (!sim.rescue(player, 'manual') && player.rescueT <= 0) sim.respawn(player); } }
 
 // ---------- camera ----------
 function snapCamera() { const r = followed(); if (!r) return; camHeading = r.heading; updateCamera(1, true); }
 function followed() { return player || sim.racers[0]; }
-const tmpV = new THREE.Vector3();
+const tmpV = new THREE.Vector3(), camPivot = new THREE.Vector3(); let camWasPlaced = false;
+const CAM_PAD = 2.2, camNear = [];
+function camSolids(a, b) { // solids near the a→b segment (small list → cheap marching)
+  const x0 = Math.min(a.x, b.x) - CAM_PAD, x1 = Math.max(a.x, b.x) + CAM_PAD, y0 = Math.min(a.y, b.y) - CAM_PAD, y1 = Math.max(a.y, b.y) + CAM_PAD, z0 = Math.min(a.z, b.z) - CAM_PAD, z1 = Math.max(a.z, b.z) + CAM_PAD;
+  camNear.length = 0; for (const s of track.solids) if (s.x1 > x0 && s.x0 < x1 && s.y1 > y0 && s.y0 < y1 && s.z1 > z0 && s.z0 < z1) camNear.push(s);
+  return camNear;
+}
+const inNear = (L, x, y, z, p) => { for (const s of L) if (x > s.x0 - p && x < s.x1 + p && y > s.y0 - p && y < s.y1 + p && z > s.z0 - p && z < s.z1 + p) return true; return false; };
+// first free→blocked fraction along a→b (1 = clear)
+function camHit(a, b) {
+  const L = camSolids(a, b); if (!L.length) return 1;
+  const d = a.distanceTo(b), n = Math.max(2, Math.ceil(d / 1.0));
+  let started = !inNear(L, a.x, a.y, a.z, CAM_PAD); // pivot itself may touch a wall (driving along it): start testing once free
+  for (let k = 1; k <= n; k++) { const t = k / n, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t, z = a.z + (b.z - a.z) * t;
+    const hit = inNear(L, x, y, z, CAM_PAD); if (!started) { if (!hit) started = true; continue; } if (hit) return Math.max(0, (k - 1) / n); }
+  return 1;
+}
+function camFree(a, want) { const f = camHit(a, want); if (f < 1) { const ff = Math.max(0.12, f); want.set(a.x + (want.x - a.x) * ff, a.y + (want.y - a.y) * ff, a.z + (want.z - a.z) * ff); } }
+function camBlocked(a, p) { return camHit(a, p) < 0.999; }
 function updateCamera(dt, snap) {
   const r = followed(); if (!r) return;
   const C = CONFIG.camera[r.type];
@@ -113,16 +135,16 @@ function updateCamera(dt, snap) {
   camHeading += dh * (snap ? 1 : Math.min(1, dt * 5));
   const fx = Math.cos(camHeading), fz = Math.sin(camHeading);
   const want = tmpV.set(r.x - fx * C.dist, r.y + C.height, r.z - fz * C.dist);
-  // keep camera out of solids and under ceilings: pull toward the vehicle until free
-  const vx = r.x, vy = r.y + 6, vz = r.z;
-  for (let k = 0; k < 10; k++) {
-    if (!track.insideSolid(want.x, want.y, want.z, 3)) break;
-    want.x = vx + (want.x - vx) * 0.78; want.y = vy + (want.y - vy) * 0.78; want.z = vz + (want.z - vz) * 0.78;
-  }
+  // camera collision: march from the vehicle to the wanted spot and stop just before the first wall / door / prop
+  // (thin walls like the pet door can't be skipped), then the same test on the smoothed position (never lerp through a wall)
+  const pivot = camPivot.set(r.x, r.y + Math.min(6, C.height * 0.5), r.z);
+  camFree(pivot, want);
   const ce = track.ceilingAt(want.x, want.z); if (want.y > ce - 3 && r.y < ce) want.y = Math.max(2, ce - 3);
   { const cv = track.ceilingAt(r.x, r.z); if (cv < CONFIG.maxAltitude && want.y > cv - 3 && r.y < cv) want.y = Math.max(2, cv - 3); } // inside the tunnel: stay under the pipe
   { const gy = track.groundAt(want.x, want.z) + 2.5; if (want.y < gy) want.y = gy; }
-  if (snap) camPos.copy(want); else camPos.lerp(want, Math.min(1, dt * (7 + r.speed / 18)));
+  if (snap || r.rescueT > 0 && r.rescuePlaced && !camWasPlaced) camPos.copy(want); else camPos.lerp(want, Math.min(1, dt * (7 + r.speed / 18)));
+  camWasPlaced = !!(r.rescueT > 0 && r.rescuePlaced);
+  if (camBlocked(pivot, camPos)) camPos.copy(want);
   camera.position.copy(camPos);
   camLook.set(r.x + fx * C.lookAhead, r.y + C.lookUp, r.z + fz * C.lookAhead);
   camera.lookAt(camLook);
@@ -175,6 +197,8 @@ function hudEvents() {
     else if (e.type === 'hit' && e.by === player && e.r !== player) toast(`💥 Hit ${e.r.name}!`);
     else if (e.type === 'bombStick' && e.r === player) toast('💣 A sticky bomb is on you – bump someone to pass it!');
     else if (e.type === 'bombPass' && e.from === player) toast(`💣 Passed the bomb to ${e.to.name}!`);
+    else if (e.type === 'rescue' && e.r === player) { $('rescueFx').classList.add('on'); toast(e.reason === 'wrongway' ? '🎣 Wrong way – back on track!' : '🎣 Back on track!'); }
+    else if (e.type === 'rescued' && e.r === player) $('rescueFx').classList.remove('on');
   }
 }
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); toastT = 2.2; }
@@ -195,6 +219,8 @@ function updateHUD(dt) {
   if (player.bomb) msg = `💣 Sticky bomb ${player.bomb.t.toFixed(1)}s – bump someone!`;
   else if (player.stunT > 0) msg = '⚡ Power cut!';
   else if (player.gateBlockT > 0) msg = player.section === 5 ? 'No flying over the hill – into the pipe!' : 'Lower! Pass under the gate';
+  else if (player.rescueT > 0) { msg = '🎣 Back on track…'; ok = true; }
+  else if (state === 'race' && sim.stuckLevel(player) > 0.4) msg = 'Stuck? Rescue coming… (↺ = reset now)';
   else if (player.wrongWayT > 1) msg = 'Wrong way!';
   else if (player.onPad && player.battery < 100) { msg = '⚡ Charging...'; ok = true; }
   else if (b < CONFIG.battery.lowThreshold) msg = player.type === 'drone' ? 'Low battery! Land on a ⚡ pad' : 'Low battery!';
@@ -203,6 +229,7 @@ function updateHUD(dt) {
   drawMinimap();
 }
 function showFinish() {
+  input.releaseAll();
   const st = sim.standings(); const tb = $('results').querySelector('tbody'); tb.innerHTML = '';
   st.forEach((r, k) => {
     const tr = document.createElement('tr'); if (r.isPlayer) tr.className = 'me';
@@ -238,7 +265,11 @@ function frame(now) {
     if (player && player.finished && state === 'race') { state = 'finished'; finishShownT = 1.5; toast('🏁 Finish!'); }
     if (state === 'finished') { finishShownT -= dt; if (finishShownT <= 0) { showFinish(); finishShownT = 0.5; } }
   }
-  sim.racers.forEach((r, k) => meshes[k] && updateVehicleMesh(meshes[k], r, paused ? 0 : dt, simT));
+  sim.racers.forEach((r, k) => { const m = meshes[k]; if (!m) return; updateVehicleMesh(m, r, paused ? 0 : dt, simT);
+    // Lakitu rescue: lift up + shrink away, then drop back in on the track
+    if (r.rescueT > 0) { const A = CONFIG.rescue.animTime, ph = 1 - r.rescueT / A, u = ph < 0.5 ? ph * 2 : (1 - ph) * 2;
+      m.root.position.y += u * 22; m.root.scale.setScalar(Math.max(0.05, 1 - u * 0.95)); m.shadow.visible = u < 0.6; m._resc = true; }
+    else if (m._resc) { m.root.scale.setScalar(1); m.shadow.visible = true; m._resc = false; } });
   { const on = !!(player && player.turboT > 0 && state === 'race'); if (on !== speedOn) { speedOn = on; $('speedlines').classList.toggle('on', on); } }
   hudEvents(); fx.update(paused ? 0 : dt, sim.racers, meshes, camera); if (state !== 'menu') updateSlot(dt);
   world.update(simT, sim.racers);
@@ -252,9 +283,10 @@ function frame(now) {
 
 // ---------- test / debug hooks ----------
 window.__rc = {
-  sim, track, CONFIG, scene, get calls() { return renderer.info.render.calls; }, get state() { return state; }, get player() { return player; },
+  sim, track, CONFIG, scene, get camera() { return camera; }, get calls() { return renderer.info.render.calls; }, get state() { return state; }, get player() { return player; },
   startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
   setCam(pos, look) { camOverride = pos ? [pos, look] : null; },
+  input, rescue: (r = player, why) => sim.rescue(r, why),
   give(w, r = player) { weapons.give(r, w); }, fire(r = player) { return weapons.use(r); },
   // fast headless race simulation (no rendering) for balance testing
   simulateRace(type = 'racecar', maxSeconds = 400, opts = {}) {

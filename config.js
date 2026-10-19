@@ -11,6 +11,29 @@ export const CONFIG = {
   // flyers get extra lateral room in these sections (×droneShortcutMargin); 0 = must stay between the barriers
   sectionFlyMargin: { 2: 0, 3: 0, 5: 0, 7: 0, 6: 1.6 },
 
+  // ===== Never stuck: Lakitu-style rescue + soft track boundaries (player AND AI, all vehicles) =====
+  rescue: {
+    enabled: true,
+    stuckTime: 1.6,        // s not moving (< moveDist) while trying to move (throttle / pitch) → rescue
+    idleTime: 4,           // s not moving at all while touching a wall / prop → rescue
+    noProgressTime: 5,     // s without forward track progress while trying to move (circling, jittering on a gate) → rescue
+    wrongWayTime: 3.5,     // s driving the wrong way → rescue
+    offTrack: 25,          // cm beyond the allowed lateral limit → rescue
+    fallDepth: 25,         // cm below the ground (fell through / in a hole) → rescue
+    embedTime: 0.3,        // s with the centre inside a solid → rescue
+    moveDist: 6,           // cm: "moved" threshold for the stuck detectors
+    progressStep: 15,      // cm of track progress that counts as making progress
+    animTime: 0.7,         // s: lift + fade out, then drop in on the track
+    backDist: 30,          // cm behind the stuck point (along the track) where you are put back
+    skipAhead: 45,         // 3rd rescue in a row at the same spot: put ahead of the obstacle instead (always finishes)
+    repeatWindow: 8, repeatProgress: 60,
+    immune: 1.6,           // s of invulnerability after a rescue
+    boost: 0.45,           // × top speed: little push when dropped back in
+    softBand: 7,           // cm inside the lateral limit where the invisible boundary starts to push back
+    softPush: 6,           // how strongly outward lateral speed is damped in the band (1/s)
+    softSteer: 2.2,        // rad/s: cars heading out of the track get their nose gently turned back
+  },
+
   // ===== Terrain: ramps, hills, puddles =====
   terrain: {
     rampKick: 1.0,         // global multiplier on every ramp/hill's take-off pop (per-feature `kick` in track.js FEATURES)

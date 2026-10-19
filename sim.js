@@ -20,6 +20,7 @@ export class Racer {
       model: null, grounded: true, groundY: 0, jumpCD: 0, airT: 0, landImpact: 0, drifting: false,
       spinT: 0, spinDir: 1, tumbleT: 0, tumbleTot: 1, stunT: 0, immuneT: 0, turboT: 0, fireT: 0,
       weapon: null, rollT: 0, holdT: 0, bomb: null, hits: 0, shots: 0,
+      rescueT: 0, rescues: 0, stillT: 0, tryStillT: 0, noProgT: 0, _embT: 0, _bestProg: -1e9, stuckMaxT: 0,
     }, o);
     this.input = { thr: 0, steer: 0, alt: 0, pitch: 0, jump: false, fire: false, ...(o.input || {}) };
     this.model = normModel(this.model || this.type); this.type = modelClass(this.model);
@@ -127,14 +128,98 @@ export class Sim {
     r.vx = r.vy = r.vz = 0; r.heading = Math.atan2(T.tz[i], T.tx[i]); r.lat = 0; r.grounded = true; r.groundY = g0; r.floaty = false;
     r.spinT = r.tumbleT = r.stunT = 0; r.immuneT = 1.5; r.respawnReq = false;
     this.emit({ type: 'respawn', r });
+    this.resetMonitors(r);
   }
+  // ---------- Lakitu-style rescue: lift + fade out, put back on the track a bit behind, facing forward, short boost ----------
+  rescue(r, reason = 'stuck') {
+    const RC = CONFIG.rescue; if (!RC?.enabled || r.rescueT > 0 || r.finished) return false;
+    r.rescueT = RC.animTime; r.rescuePlaced = false; r.rescueReason = reason; r.rescueFrom = { x: r.x, y: r.y, z: r.z };
+    r.immuneT = Math.max(r.immuneT, RC.animTime + RC.immune); r.rescues = (r.rescues || 0) + 1;
+    r.vx = r.vy = r.vz = 0; r.input.jump = false;
+    this.emit({ type: 'rescue', r, reason });
+    return true;
+  }
+  rescueStep(r, dt) {
+    const RC = CONFIG.rescue;
+    r.vx = r.vy = r.vz = 0; r.rescueT -= dt;
+    if (!r.rescuePlaced && r.rescueT <= RC.animTime * 0.5) this.placeRescue(r);
+    if (r.rescueT <= 0) { // drop-in done: little forward boost
+      r.rescueT = 0; if (!r.rescuePlaced) this.placeRescue(r);
+      const v = RC.boost * (r.type === 'car' ? r.V.topSpeed : r.V.thrust / r.V.drag);
+      r.vx = Math.cos(r.heading) * v; r.vz = Math.sin(r.heading) * v; r.immuneT = Math.max(r.immuneT, RC.immune);
+      this.emit({ type: 'rescued', r });
+    }
+    r._px = r.x; r._pz = r.z; r._py = r.y; r._lat = r.lat;
+  }
+  // a track point is free for this racer (not inside / touching a prop at the height it will be put)
+  rescueSpotFree(r, i, lat) {
+    const T = this.T, x = T.px[i] + T.nx[i] * lat, z = T.pz[i] + T.nz[i] * lat, g = T.groundAt(x, z);
+    const y = r.type === 'drone' ? Math.min(15 + g, T.droneSafeAlt[i]) : g;
+    if (T.insideSolid(x, y + 1, z, r.V.radius + 1) || T.insideSolid(x, y + r.V.height, z, r.V.radius)) return null;
+    if (r.type === 'car' && Math.abs(T.groundAt(x + T.tx[i] * 6, z + T.tz[i] * 6) - g) > 2.5) return null; // not on a ramp lip / step
+    for (const o of this.racers) if (o !== r && Math.hypot(o.x - x, o.z - z) < o.V.radius + r.V.radius + 2 && Math.abs(o.y - y) < 10) return null;
+    return { x, y, z, g };
+  }
+  placeRescue(r) {
+    const T = this.T, RC = CONFIG.rescue, N = T.N;
+    if (!(r.idx >= 0 && r.idx < N)) r.idx = 0;
+    const repeat = r._lastRescueT !== undefined && this.t - r._lastRescueT < RC.repeatWindow && r.progress < r._lastRescueProg + RC.repeatProgress;
+    r._rescueStreak = repeat ? (r._rescueStreak || 0) + 1 : 0;
+    const gateCase = r.type === 'drone' && r.rescueReason === 'stuck' && r.gateBlockT > 0; // too high at a gate: fly lower – only skip after many tries
+    const ahead = r._rescueStreak >= (gateCase ? 4 : 2);
+    let i = (r.idx + Math.round((ahead ? RC.skipAhead : -RC.backDist) / T.ds) + N) % N, spot = null;
+    for (let k = 0; k < 80 && !spot; k++) {
+      for (const lat of [0, -9, 9, -16, 16]) { if (Math.abs(lat) > T.halfW[i] - r.V.halfWidth) continue; spot = this.rescueSpotFree(r, i, lat); if (spot) break; }
+      if (!spot) i = (i + (ahead ? 1 : -1) + N) % N;
+    }
+    if (!spot) { const g = T.groundAt(T.px[i], T.pz[i]); spot = { x: T.px[i], z: T.pz[i], g, y: r.type === 'drone' ? Math.min(15 + g, T.droneSafeAlt[i]) : g }; }
+    r.progress += T.wrapS(T.s[i] - r.s); r.idx = i; r.s = T.s[i];
+    r.x = spot.x; r.z = spot.z; r.y = spot.y; r._tg = spot.g; r.groundY = spot.g; r.lat = T.project(r.x, r.z, i, this._pr).lat;
+    r._px = r.x; r._pz = r.z; r._py = r.y; r._lat = r.lat;
+    r.heading = Math.atan2(T.tz[i], T.tx[i]); r.vx = r.vy = r.vz = 0; r.grounded = true; r.floaty = false; r.airT = 0; r.tiltP = 0;
+    r.spinT = r.tumbleT = r.stunT = 0; r.wrongWayT = 0; r.gateBlockT = 0; r.rescuePlaced = true;
+    if (r.type === 'drone') r.spool = 1;
+    r._lastRescueT = this.t; r._lastRescueProg = r.progress;
+    this.resetMonitors(r);
+    if (r.ai) { const a = r.ai; a.stuckT = a.recoverT = a.turnT = 0; a.stuckLong = 0; a.noProgT = 0; a.bestProg = r.progress; }
+  }
+  resetMonitors(r) { r._ax = r.x; r._ay = r.y; r._az = r.z; r.stillT = r.tryStillT = r.noProgT = r._embT = 0; r._bestProg = r.progress; r.stuckMaxT = 0; }
+  // stuck / off-track detectors → rescue (runs for every racer every physics step)
+  monitor(r, dt) {
+    const RC = CONFIG.rescue, T = this.T; if (!RC?.enabled || !this.running || r.finished || r.rescueT > 0) return;
+    if (r._ax === undefined) { this.resetMonitors(r); return; }
+    if (!isFinite(r.x) || !isFinite(r.y) || !isFinite(r.z) || !isFinite(r.vx) || !isFinite(r.vz)) { r.x = T.px[r.idx] || 0; r.z = T.pz[r.idx] || 0; r.y = 0; r.vx = r.vy = r.vz = 0; return this.rescue(r, 'fell'); }
+    const inp = r.input, car = r.type === 'car', hitState = r.spinT > 0 || r.tumbleT > 0 || r.stunT > 0;
+    const charging = r.onPad || !!(r.ai && r.ai.pad);
+    const tryW = hitState ? 0 : car ? (Math.abs(inp.thr) > 0.3 ? 1 : 0) : (r.spool < 1 || charging) ? 0 : Math.abs(inp.pitch) > 0.3 ? 1 : inp.alt > 0.3 ? 0.5 : 0;
+    if (Math.hypot(r.x - r._ax, r.z - r._az, (r.y - r._ay) * 0.6) > RC.moveDist) { r._ax = r.x; r._ay = r.y; r._az = r.z; r.stillT = 0; r.tryStillT = 0; }
+    else { r.stillT += dt; r.tryStillT += dt * tryW; }
+    if (r.progress > r._bestProg + RC.progressStep) { r._bestProg = r.progress; r.noProgT = 0; } else if (tryW > 0 && !charging) r.noProgT += dt;
+    if (r.scrapeT > 0) r._contactAt = this.t;
+    const touching = this.t - (r._contactAt ?? -99) < 1;
+    const g = T.groundAt(r.x, r.z);
+    r._embT = (car && T.insideSolid(r.x, r.y + 1.5, r.z, -1)) ? r._embT + dt : 0;
+    const lim = T.halfW[r.idx] + (r.type === 'drone' ? CONFIG.droneShortcutMargin * T.marginF[r.idx] : 0) + RC.offTrack;
+    let why = null;
+    if (r.y < g - RC.fallDepth || r.y > CONFIG.maxAltitude + g + 40) why = 'fell';
+    else if (Math.abs(r.lat) > lim) why = 'offtrack';
+    else if (r._embT > RC.embedTime) why = 'wedged';
+    else if (r.tryStillT > RC.stuckTime) why = 'stuck';
+    else if (r.stillT > RC.idleTime && touching && !charging) why = 'wedged';
+    else if (r.noProgT > RC.noProgressTime) why = 'noprogress';
+    else if (r.wrongWayT > RC.wrongWayTime) why = 'wrongway';
+    r.stuckMaxT = Math.max(r.stuckMaxT || 0, r.tryStillT);
+    if (why) this.rescue(r, why);
+  }
+  // seconds of "still while trying" so far (HUD hint)
+  stuckLevel(r) { return r.rescueT > 0 ? 0 : (r.tryStillT || 0) / CONFIG.rescue.stuckTime; }
   add(r) { r.id = this.racers.length; this.racers.push(r); return r; }
   placeGrid(order) {
     const T = this.T; const slots = [[-22, -20], [-22, 20], [-52, -20], [-52, 20], [-82, 0]];
     order.forEach((r, k) => {
       const [s, lat] = slots[k % slots.length]; const i = ((Math.round(s / T.ds)) % T.N + T.N) % T.N;
       r.x = T.px[i] + T.nx[i] * lat; r.z = T.pz[i] + T.nz[i] * lat; r.y = 0; r.heading = Math.atan2(T.tz[i], T.tx[i]);
-      r.vx = r.vy = r.vz = 0; const pr = T.project(r.x, r.z, null); r.idx = pr.idx; r.s = pr.s; r.lat = pr.lat; r.progress = T.wrapS(pr.s);
+      r.vx = r.vy = r.vz = 0; const pr = T.project(r.x, r.z, null); r.idx = pr.idx; r.s = pr.s; r.lat = pr.lat; r.progress = T.wrapS(pr.s); r.rescueT = 0; r._lastRescueT = undefined; this.resetMonitors(r);
     });
   }
   step(dt) {
@@ -143,7 +228,8 @@ export class Sim {
     for (const r of this.racers) {
       if (r.ai && (!r.isPlayer || r.autopilot || r.finished)) r.ai.update(r, dt, this.running);
       if (!this.running) { r.input.thr = r.input.steer = r.input.alt = r.input.pitch = 0; r.input.jump = false; }
-      if (r.respawnReq) this.respawn(r);
+      if (r.respawnReq) { r.respawnReq = false; if (this.running && CONFIG.rescue?.enabled) this.rescue(r, 'ai'); else this.respawn(r); }
+      if (r.rescueT > 0) { this.rescueStep(r, dt); continue; }
       r._px = r.x; r._pz = r.z; r._py = r.y; r._lat = r.lat;
       for (const k of ['spinT', 'tumbleT', 'stunT', 'immuneT', 'turboT', 'jumpCD']) if (r[k] > 0) r[k] = Math.max(0, r[k] - dt);
       if (r.type === 'car') { this.carStep(r, dt); this.collideSolids(r); this.groundSupport(r, dt); }
@@ -152,7 +238,8 @@ export class Sim {
     // vehicle-vehicle: mass-weighted bouncy contact, turbo rams, sticky-bomb passing
     const R = this.racers, Wt = CONFIG.weapons.turbo;
     for (let a = 0; a < R.length; a++) for (let b = a + 1; b < R.length; b++) {
-      const A = R[a], B = R[b]; const dx = B.x - A.x, dz = B.z - A.z; const d = Math.hypot(dx, dz);
+      const A = R[a], B = R[b]; if (A.rescueT > 0 || B.rescueT > 0) continue; // being rescued = ghost
+      const dx = B.x - A.x, dz = B.z - A.z; const d = Math.hypot(dx, dz);
       const ra = A.V.radius, rb = B.V.radius;
       if (d < ra + rb && d > 0.001 && Math.abs(A.y - B.y) < 7) {
         const nx = dx / d, nz = dz / d, ma = A.V.mass || 1, mb = B.V.mass || 1, ia = 1 / ma, ib = 1 / mb, pen = (ra + rb - d);
@@ -214,8 +301,11 @@ export class Sim {
     const c = r.V, T = this.T, TC = CONFIG.terrain, rad = c.radius - 2.5, base = Math.max(r.y, r._py);
     let tg = T.groundAt(r.x, r.z);
     if (tg > base + TC.maxStep) { // the side of a ramp / garage edge acts like a wall
-      r.x = r._px; r.z = r._pz; if (Math.hypot(r.vx, r.vz) > 60) this.emit({ type: 'bump', r });
-      r.vx *= -0.3; r.vz *= -0.3; r.scrapeT = 0.2; tg = T.groundAt(r.x, r.z);
+      if (Math.hypot(r.vx, r.vz) > 60) this.emit({ type: 'bump', r });
+      if (T.groundAt(r.x, r._pz) <= base + TC.maxStep) { r.z = r._pz; r.vz *= -0.2; }      // slide along x
+      else if (T.groundAt(r._px, r.z) <= base + TC.maxStep) { r.x = r._px; r.vx *= -0.2; } // slide along z
+      else { r.x = r._px; r.z = r._pz; r.vx *= -0.3; r.vz *= -0.3; }
+      r.scrapeT = 0.2; tg = T.groundAt(r.x, r.z);
     }
     let g = tg; const reach = base + c.stepUp + 0.01;
     for (const s of T.solids) if (s.y1 <= reach && s.y1 > g && r.x + rad > s.x0 && r.x - rad < s.x1 && r.z + rad > s.z0 && r.z - rad < s.z1) g = s.y1;
@@ -290,20 +380,39 @@ export class Sim {
     r.x += r.vx * dt; r.z += r.vz * dt;
     if (!r.onPad && this.running) r.battery -= (d.batteryDrainBase * r.spool + d.batteryDrainThrust * Math.abs(pitch) + d.batteryDrainClimb * Math.max(0, inp.alt)) * dt;
   }
+  // circle (xz) vs box push-out: corners are round, so nothing snags on an edge; glancing hits slide along the wall,
+  // only the head-on part of the velocity bounces; cars pressed nose-first into a wall get turned to slide along it.
   collideSolids(r) {
     const V = r.V, rad = V.radius - 1.5, h = V.height, isCar = r.type === 'car';
     for (const s of this.T.solids) {
       if (r.x + rad <= s.x0 || r.x - rad >= s.x1 || r.z + rad <= s.z0 || r.z - rad >= s.z1 || r.y + h <= s.y0 || r.y >= s.y1) continue;
       if (isCar && Math.max(r._py, r.y) >= s.y1 - V.stepUp - 0.01) continue; // on/over the top: handled by groundSupport
-      const pxa = r.x + rad - s.x0, pxb = s.x1 - (r.x - rad), pza = r.z + rad - s.z0, pzb = s.z1 - (r.z - rad);
-      const px = Math.min(pxa, pxb), pz = Math.min(pza, pzb);
+      const cx = r.x < s.x0 ? s.x0 : r.x > s.x1 ? s.x1 : r.x, cz = r.z < s.z0 ? s.z0 : r.z > s.z1 ? s.z1 : r.z;
+      let nx = r.x - cx, nz = r.z - cz, d = Math.hypot(nx, nz), pen;
+      if (d > 1e-4) { if (d >= rad) continue; nx /= d; nz /= d; pen = rad - d; }
+      else { // centre inside the box: shortest way out
+        const ex = [r.x - s.x0, s.x1 - r.x, r.z - s.z0, s.z1 - r.z]; let m = 0; for (let k = 1; k < 4; k++) if (ex[k] < ex[m]) m = k;
+        nx = m === 0 ? -1 : m === 1 ? 1 : 0; nz = m === 2 ? -1 : m === 3 ? 1 : 0; pen = ex[m] + rad;
+      }
       let py = 1e9, pyDir = 0;
       if (!isCar) { const pya = r.y + h - s.y0, pyb = s.y1 - r.y; if (pya < pyb) { py = pya; pyDir = -1; } else { py = pyb; pyDir = 1; } }
       else if (r._py + h <= s.y0 + 0.5) { py = r.y + h - s.y0; pyDir = -1; } // bonk head on a ceiling while jumping
-      const kb = isCar ? V.wallBounce : 0.2, ks = isCar ? V.wallSlide : 0.97;
-      if (py < px && py < pz) { r.y += pyDir * py; if (r.vy * pyDir < 0) r.vy = 0; }
-      else if (px < pz) { const dir = pxa < pxb ? -1 : 1; r.x += dir * px; if (r.vx * dir < 0) { if (Math.abs(r.vx) > 60) this.emit({ type: 'bump', r }); r.vx *= -kb; } r.vz *= ks; r.scrapeT = 0.2; }
-      else { const dir = pza < pzb ? -1 : 1; r.z += dir * pz; if (r.vz * dir < 0) { if (Math.abs(r.vz) > 60) this.emit({ type: 'bump', r }); r.vz *= -kb; } r.vx *= ks; r.scrapeT = 0.2; }
+      if (py < pen) { r.y += pyDir * py; if (r.vy * pyDir < 0) r.vy = 0; continue; }
+      r.x += nx * (pen + 0.01); r.z += nz * (pen + 0.01); r.scrapeT = 0.2;
+      const sp = Math.hypot(r.vx, r.vz), vn = r.vx * nx + r.vz * nz;
+      if (vn < 0) {
+        const headOn = sp > 1e-3 ? -vn / sp : 1, kb = (isCar ? V.wallBounce : 0.2) * headOn * headOn, ks = isCar ? V.wallSlide : 0.97;
+        if (-vn > 60) this.emit({ type: 'bump', r });
+        const tx = r.vx - vn * nx, tz = r.vz - vn * nz; // tangential part slides on
+        r.vx = tx * ks - vn * kb * nx; r.vz = tz * ks - vn * kb * nz;
+      }
+      if (isCar && r.grounded && r.controllable) { // nose into the wall → swing it along the wall (towards the track direction)
+        const ch = Math.cos(r.heading), sh = Math.sin(r.heading), into = -(ch * nx + sh * nz);
+        if (into > 0.25) {
+          const T = this.T, ti = r.idx, tdx = T.tx[ti], tdz = T.tz[ti]; let ax = -nz, az = nx; if (ax * tdx + az * tdz < 0) { ax = -ax; az = -az; }
+          const e = wrapA(Math.atan2(az, ax) - r.heading); r.heading += clamp(e, -1, 1) * 2.5 * into * (1 / CONFIG.physicsHz);
+        }
+      }
     }
   }
   post(r, dt) {
@@ -318,6 +427,15 @@ export class Sim {
       else if (Math.abs(r._lat) > hwT + 1 && hwT + 3 + V.halfWidth <= inner + m) { maxL = inner + m; minL = hwT + 3 + V.halfWidth; }
     }
     const al = Math.abs(pr.lat), sg = Math.sign(pr.lat) || 1, nx = T.nx[i], nz = T.nz[i];
+    const RC = CONFIG.rescue;
+    if (RC?.enabled && RC.softBand > 0 && minL === 0 && maxL > RC.softBand * 1.5 && al > maxL - RC.softBand && r.rescueT <= 0) { // invisible soft boundary
+      const f = Math.min(1, (al - (maxL - RC.softBand)) / RC.softBand), vout = (r.vx * nx + r.vz * nz) * sg;
+      if (vout > 0) { const k = Math.min(1, RC.softPush * f * dt); r.vx -= nx * sg * vout * k; r.vz -= nz * sg * vout * k; }
+      if (r.type === 'car' && r.grounded && r.controllable) {
+        const hOut = (Math.cos(r.heading) * nx + Math.sin(r.heading) * nz) * sg;
+        if (hOut > 0.05) { const e = wrapA(Math.atan2(T.tz[i], T.tx[i]) - r.heading); if (Math.abs(e) < 1.7) r.heading += clamp(e, -1, 1) * RC.softSteer * f * dt; }
+      }
+    }
     let corr = 0; if (al > maxL) corr = al - maxL; else if (al < minL) corr = al - minL;
     if (corr !== 0) {
       r.x -= nx * sg * corr; r.z -= nz * sg * corr; pr.lat -= sg * corr;
@@ -354,6 +472,7 @@ export class Sim {
     const dot = Math.cos(r.heading) * T.tx[r.idx] + Math.sin(r.heading) * T.tz[r.idx];
     r.wrongWayT = (dot < -0.3 && r.speed > 8) ? r.wrongWayT + dt : 0;
     r.gateBlockT = Math.max(0, r.gateBlockT - dt); r.scrapeT = Math.max(0, r.scrapeT - dt);
+    this.monitor(r, dt);
     // laps
     if (this.running && !r.finished && r.progress >= (r.lapsDone + 1) * T.L) {
       r.lapsDone++; const lt = this.t - r.lapStart; r.lapTimes.push(lt); r.best = Math.min(r.best, lt); r.lapStart = this.t;
