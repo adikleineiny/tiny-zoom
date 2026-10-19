@@ -1,4 +1,4 @@
-import * as THREE from '../vendor/three.module.min.js';
+import * as THREE from './three.module.min.js';
 import { CONFIG } from './config.js';
 
 export const SECTION_NAMES = { 1: 'Kitchen Floor', 2: 'Under the Table', 3: 'Pet Door', 4: 'The Lawn', 5: 'Sandbox Tunnel', 6: 'Rolling Hills', 7: 'Toy Town', 8: 'Gnome Garden & Home' };

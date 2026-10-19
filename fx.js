@@ -1,5 +1,5 @@
 // Visuals for RC parts crates (mystery boxes), projectiles, hazards and hit effects. Reads sim/weapons state + sim.events each frame.
-import * as THREE from '../vendor/three.module.min.js';
+import * as THREE from './three.module.min.js';
 import { CONFIG } from './config.js';
 
 function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }

@@ -1,4 +1,4 @@
-import * as THREE from '../vendor/three.module.min.js';
+import * as THREE from './three.module.min.js';
 import { CONFIG } from './config.js';
 import { Track, SECTION_NAMES, SECTION_TIPS, TUNNEL } from './track.js';
 import { buildWorld } from './world.js';

@@ -1,4 +1,4 @@
-import * as THREE from '../vendor/three.module.min.js';
+import * as THREE from './three.module.min.js';
 import { makeLabelTexture } from './world.js';
 
 const lam = (c, o = {}) => new THREE.MeshLambertMaterial({ color: c, ...o });
