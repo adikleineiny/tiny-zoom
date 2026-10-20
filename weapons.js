@@ -5,7 +5,7 @@ export const WEAPONS = {
   ball:   { icon: '🔴', name: 'Bouncy Ball',   tip: 'Bounces off walls, bowls racers over' },
   shock:  { icon: '💥', name: 'Shockwave',     tip: 'Pushes everyone nearby away' },
   rocket: { icon: '🚀', name: 'Homing Rocket', tip: 'Chases the racer ahead and flips it' },
-  oil:    { icon: '🛢️', name: 'Oil Slick',     tip: 'Dropped behind – racers spin out' },
+  pulse:  { icon: '🌀', name: 'EMP Pulse',     tip: 'Homing orb – EMP burst spins & slows everyone it catches, on the ground or in the air' }, // v3.8 (replaces Oil Slick)
   zap:    { icon: '⚡', name: 'Electrify',     tip: 'Chain lightning – kills their power' },
   glove:  { icon: '🥊', name: 'Spring Glove',  tip: 'Boing! Punches the racer in front' },
   bomb:   { icon: '💣', name: 'Sticky Bomb',   tip: 'Lobbed behind you – sticks on whoever follows. Bump someone to pass it!' },
@@ -30,7 +30,7 @@ export class Weapons {
       for (const l of C.boxLat) {
         const lat = l * (T.halfW[i] - 10), x = T.px[i] + T.nx[i] * lat, z = T.pz[i] + T.nz[i] * lat;
         if (T.insideSolid(x, 4, z, 7)) continue;
-        this.boxes.push({ id: uid++, x, z, y: 6 + T.groundAt(x, z), active: true, t: 0, s: T.s[i] });
+        this.boxes.push({ id: uid++, x, z, y: C.boxLift + T.groundAt(x, z), g: T.groundAt(x, z), active: true, t: 0, s: T.s[i] });
       }
     }
   }
@@ -48,8 +48,8 @@ export class Weapons {
       if (r.rollT > 0) { r.rollT -= dt; if (r.rollT <= 0) { this.give(r, r.rollPick || this.pick()); r.rollPick = null; S.emit({ type: 'gotWeapon', r, w: r.weapon }); } }
       else if (r.weapon) r.holdT += dt;
       if (S.running && !r.weapon && r.rollT <= 0) {
-        const maxY = r.type === 'drone' ? C.droneCollectAlt : 22, rad = C.boxRadius + r.V.radius * 0.4;
-        for (const b of this.boxes) if (b.active && r.y - b.y + 6 < maxY && Math.abs(b.x - r.x) < rad && Math.abs(b.z - r.z) < rad && Math.hypot(b.x - r.x, b.z - r.z) < rad) {
+        const maxY = r.type === 'drone' ? C.droneCollectAlt : C.groundCollectAlt, rad = C.boxRadius + r.V.radius * 0.4; // v3.8: height measured from the crate's floor
+        for (const b of this.boxes) if (b.active && r.y - b.g < maxY && r.y - b.g > -6 && Math.abs(b.x - r.x) < rad && Math.abs(b.z - r.z) < rad && Math.hypot(b.x - r.x, b.z - r.z) < rad) {
           b.active = false; b.t = C.boxRespawn; r.rollT = C.rollTime; r.rollPick = this.pick(); S.emit({ type: 'pickup', r, b }); break;
         }
       }
@@ -63,7 +63,7 @@ export class Weapons {
       }
     }
     // projectiles
-    for (let k = this.proj.length - 1; k >= 0; k--) { const p = this.proj[k]; p.age += dt; if (p.age > p.life || this[p.kind + 'Tick'](p, dt)) { this.proj.splice(k, 1); if (p.age > p.life && p.kind === 'rocket') S.emit({ type: 'boom', x: p.x, y: p.y, z: p.z, size: 0.6 }); } }
+    for (let k = this.proj.length - 1; k >= 0; k--) { const p = this.proj[k]; p.age += dt; if (p.age > p.life || this[p.kind + 'Tick'](p, dt)) { this.proj.splice(k, 1); if (p.age > p.life && p.kind === 'pulse') this.empBurst(p); else if (p.age > p.life && p.kind === 'rocket') S.emit({ type: 'boom', x: p.x, y: p.y, z: p.z, size: 0.6 }); } }
     // hazards on the floor
     for (let k = this.haz.length - 1; k >= 0; k--) { const h = this.haz[k]; h.age += dt; if (h.age > h.life || this.hazTick(h, dt)) this.haz.splice(k, 1); }
   }
@@ -95,7 +95,12 @@ export class Weapons {
         }
         S.emit({ type: 'shock', x: r.x, y: r.y, z: r.z, R: Rr, r }); break;
       }
-      case 'oil': this.haz.push({ id: uid++, kind: 'oil', x: r.x - c * 14, z: r.z - s * 14, y: this.T.groundAt(r.x - c * 14, r.z - s * 14), life: C.oil.life, age: 0, owner: r, R: C.oil.radius }); S.emit({ type: 'drop', r }); break;
+      case 'pulse': { // v3.8: homing EMP orb – targets the nearest racer ahead in 3D (ground or air), bursts in a sphere
+        let tgt = null, best = 1e9;
+        for (const o of this.others(r)) { const dp = o.progress - r.progress; if (dp > 2 && dp < C.pulse.range && dp < best) { best = dp; tgt = o; } }
+        if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); const d = Math.hypot(f.d, o.y - r.y); if (f.cos > 0.3 && d < C.pulse.range && d < best) { best = d; tgt = o; } }
+        spawn('pulse', { vx: c * C.pulse.speed, vy: 0, vz: s * C.pulse.speed, life: C.pulse.life, target: tgt, y: r.y + 5 }); break;
+      }
       case 'zap': {
         const pts = [r], hitSet = new Set([r]); let cur = r;
         for (let k = 0; k < C.zap.chainMax; k++) {
@@ -134,8 +139,7 @@ export class Weapons {
     const C = this.C, S = this.sim;
     for (const o of S.racers) {
       const d = Math.hypot(o.x - h.x, o.z - h.z), oy = o.y - (o.groundY || 0);
-      if (h.kind === 'oil') { if (d < h.R + 2 && oy < C.oil.maxAlt && o.speed > 15) S.hit(o, { spin: C.oil.spin, slow: C.oil.slow, by: h.owner, kind: 'oil' }); }
-      else if (h.kind === 'fire') {
+      if (h.kind === 'fire') {
         if (o === h.owner || d > h.R + o.V.radius * 0.5) continue;
         if (o.type === 'drone') { if (oy < C.fire.droneMaxAlt) S.hit(o, { up: C.fire.droneHeat / 0.6, spin: 0.35, slow: 0.85, by: h.owner, kind: 'fire' }); }
         else if (oy < 8) S.hit(o, { spin: C.fire.spin, slow: C.fire.slow, up: 50, by: h.owner, kind: 'fire' });
@@ -212,6 +216,23 @@ export class Weapons {
     }
     return false;
   }
+  pulseTick(p, dt) { // v3.8 EMP orb: full 3D homing (altitude too), so flyers are caught exactly like ground racers
+    const P = this.C.pulse, t = p.target;
+    if (t) { const dx = t.x - p.x, dy = t.y + 4 - p.y, dz = t.z - p.z, d = Math.hypot(dx, dy, dz) || 1, k = Math.min(1, P.turn * dt);
+      p.vx += (dx / d * P.speed - p.vx) * k; p.vy += (dy / d * P.speed - p.vy) * k; p.vz += (dz / d * P.speed - p.vz) * k;
+      const v = Math.hypot(p.vx, p.vy, p.vz) || 1; p.vx *= P.speed / v; p.vy *= P.speed / v; p.vz *= P.speed / v; }
+    else p.vy = (6 + this.T.groundAt(p.x, p.z) - p.y) * 3;
+    const ox = p.x, oz = p.z; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; { const gr = this.T.groundAt(p.x, p.z) + 2; if (p.y < gr) p.y = gr; }
+    if (this.T.insideSolid(p.x, p.y, p.z, 0)) { p.x = ox; p.z = oz; this.empBurst(p); return true; }
+    for (const o of this.sim.racers) { if (o === p.owner && p.age < 0.6) continue; if (Math.hypot(o.x - p.x, o.y + 3 - p.y, o.z - p.z) < P.trigger + o.V.radius * 0.5) { this.empBurst(p); return true; } }
+    return false;
+  }
+  empBurst(p) { // same effect for every vehicle type: spin + speed cut, no knock-up (so drones/helis aren't favoured or punished)
+    const P = this.C.pulse, S = this.sim;
+    for (const o of S.racers) { if (o === p.owner) continue; const d = Math.hypot(o.x - p.x, o.y + 3 - p.y, o.z - p.z); if (d > P.radius) continue;
+      S.hit(o, { spin: P.spin, slow: P.slow, stun: P.stun, by: p.owner, kind: 'pulse' }); }
+    S.emit({ type: 'emp', x: p.x, y: p.y, z: p.z, R: P.radius });
+  }
   bombTick(p, dt) {
     const B = this.C.bomb, S = this.sim;
     this.move(p, dt, CONFIG.gravity);
@@ -234,7 +255,8 @@ export class Weapons {
       case 'shock': go ||= near(C.shock.radius * 0.75); break;
       case 'zap': go ||= near(C.zap.range * 0.85); break;
       case 'glove': go ||= inFront(C.glove.reach, 0.85); break;
-      case 'oil': case 'fire': go ||= behind(90) || inFront(C.fire.coneReach, 0.9); break;
+      case 'pulse': go ||= os.some(o => { const dp = o.progress - r.progress; return dp > 10 && dp < C.pulse.range * 0.7; }) || near(C.pulse.radius * 0.8); break;
+      case 'fire': go ||= behind(90) || inFront(C.fire.coneReach, 0.9); break;
       case 'turbo': go ||= Math.abs(this.T.curv[(r.idx + 8) % this.T.N]) < 0.0025 && (r.type === 'drone' || r.grounded); break;
     }
     if (go) this.use(r);

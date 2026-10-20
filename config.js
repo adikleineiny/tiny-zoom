@@ -162,15 +162,16 @@ export const CONFIG = {
     enabled: true,
     boxRows: [0.05, 0.15, 0.24, 0.33, 0.43, 0.52, 0.61, 0.70, 0.79, 0.89, 0.96], // where crate rows sit (fraction of lap)
     boxLat: [-0.55, 0, 0.55],  // lateral positions (fraction of half width)
-    boxRespawn: 4, boxRadius: 10, droneCollectAlt: 34,
+    boxRespawn: 4, boxRadius: 13, droneCollectAlt: 44, groundCollectAlt: 26, // v3.8: bigger/taller crates → wider & higher pickup
+    boxSize: [10, 14], boxLift: 11, // v3.8 crate width × height and centre height above the floor (was 7×7 at 6)
     rollTime: 1.3,             // slot-machine roll before you get the weapon
     aiUseDelay: [0.5, 2.0], aiMaxHold: 7,
-    weights: { ball: 1, shock: 1, rocket: 0.8, oil: 1, zap: 1, glove: 1, bomb: 1, turbo: 1.1, fire: 1 },
+    weights: { ball: 1, shock: 1, rocket: 0.8, pulse: 1, zap: 1, glove: 1, bomb: 1, turbo: 1.1, fire: 1 },
     hit: { immune: 1.4, spinRate: 10 },   // invulnerability after any hit (no stun-lock)
     ball:   { speed: 250, life: 4, radius: 3.2, bounce: 0.72, knock: 170, up: 90, spin: 0.6, slow: 0.5 },
     rocket: { speed: 245, turn: 4.5, life: 4.5, range: 800, up: 230, knock: 60, tumble: 1.0, slow: 0.3 },
     shock:  { radius: 70, knock: 240, up: 90, tumble: 0.6, slow: 0.55 },
-    oil:    { radius: 13, life: 12, spin: 0.9, slow: 0.6, maxAlt: 10 },  // drones skimming below maxAlt slip too
+    pulse:  { speed: 210, turn: 5, life: 3.2, range: 700, trigger: 10, radius: 32, spin: 0.85, slow: 0.5, stun: 0 },  // v3.8 EMP orb: 3D homing, spherical burst, identical for ground & air
     zap:    { range: 150, chainRange: 100, chainMax: 3, stun: 0.9, slow: 0.4, droneDrop: 60 },
     glove:  { reach: 50, cone: 0.75, knock: 300, up: 110, spin: 0.6, slow: 0.5, time: 0.42 },
     bomb:   { fuse: 3.2, throwSpeed: 170, throwUp: 85, radius: 42, up: 240, knock: 170, tumble: 1.1, slow: 0.35, passCooldown: 0.6, mineLife: 6, backThrow: 0.6, ownerSafe: 2.5 },

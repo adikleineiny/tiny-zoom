@@ -21,10 +21,6 @@ const QBOX = tex(128, 128, (g) => {
   for (const [x, y] of [[20, 20], [108, 20], [20, 108], [108, 108]]) { g.fillStyle = '#888'; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
   drawBoltGear(g, 64, 64, 36);
 });
-const OIL = tex(128, 128, (g) => {
-  g.fillStyle = 'rgba(10,10,14,0.92)'; g.beginPath(); for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, r = 48 + Math.sin(k * 2.7) * 10; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } g.fill();
-  const gr = g.createRadialGradient(50, 50, 4, 64, 64, 50); gr.addColorStop(0, 'rgba(120,200,255,.45)'); gr.addColorStop(0.5, 'rgba(200,80,255,.25)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
-});
 const ADD = THREE.AdditiveBlending, NORM = THREE.NormalBlending;
 const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -32,7 +28,7 @@ export class FX {
   constructor(scene, sim) {
     this.scene = scene; this.sim = sim; this.pool = []; this.live = []; this.objs = new Map(); this.rings = []; this.zaps = []; this.boxMeshes = new Map(); this.att = new Map(); this.t = 0;
     for (let k = 0; k < 320; k++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, transparent: true, depthWrite: false })); sp.visible = false; scene.add(sp); this.pool.push(sp); }
-    this.boxGeo = new THREE.BoxGeometry(7, 7, 7); this.boxMat = new THREE.MeshLambertMaterial({ map: QBOX, emissive: 0x331400 });
+    this.boxGeo = new THREE.BoxGeometry(CONFIG.weapons.boxSize[0], CONFIG.weapons.boxSize[1], CONFIG.weapons.boxSize[0]); /* v3.8 taller crate */ this.boxMat = new THREE.MeshLambertMaterial({ map: QBOX, emissive: 0x331400 });
     this.ballMat = new THREE.MeshPhongMaterial({ color: 0xff4fa3, emissive: 0x551133, shininess: 120 });
     this.bombMat = new THREE.MeshPhongMaterial({ color: 0x15151a, shininess: 140, specular: 0x888888 });
   }
@@ -62,9 +58,10 @@ export class FX {
     // boxes
     if (W) for (const b of W.boxes) {
       let o = this.boxMeshes.get(b.id);
-      if (!o) { const m = new THREE.Mesh(this.boxGeo, this.boxMat); const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xff7b00, transparent: true, blending: ADD, depthWrite: false, opacity: 0.3 })); halo.scale.set(13, 13, 1); m.add(halo); this.scene.add(m); o = { m, halo, s: 1 }; this.boxMeshes.set(b.id, o); }
+      if (!o) { const m = new THREE.Mesh(this.boxGeo, this.boxMat); const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xff7b00, transparent: true, blending: ADD, depthWrite: false, opacity: 0.3 })); halo.scale.set(20, 24, 1); m.add(halo); this.scene.add(m); o = { m, halo, s: 1 }; this.boxMeshes.set(b.id, o); }
       o.s += ((b.active ? 1 : 0) - o.s) * Math.min(1, dt * 8); o.m.visible = o.s > 0.03;
-      o.m.position.set(b.x, b.y + Math.sin(t * 2 + b.id) * 0.5, b.z); o.m.rotation.set(0, t * 0.8 + b.id, 0); // sturdy crate: slow turn, no tumbling o.m.scale.setScalar(o.s * (1 + 0.06 * Math.sin(t * 6 + b.id)));
+      o.m.position.set(b.x, b.y + Math.sin(t * 2 + b.id) * 0.5, b.z); o.m.rotation.set(0, t * 0.8 + b.id, 0); // sturdy crate: slow turn, no tumbling
+      o.m.scale.setScalar(o.s * (1 + 0.06 * Math.sin(t * 6 + b.id)));
       o.halo.material.opacity = 0.2 + 0.1 * Math.sin(t * 4 + b.id);
     }
     // projectiles
@@ -100,9 +97,14 @@ export class FX {
       case 'land': this.burst(r.x, r.y + 1, r.z, 6 + Math.round(10 * e.impact), 40 + 60 * e.impact, { color: 0xc8b89a, add: false, alpha: 0.55, size: 5, life: 0.6, grow: 1.8, up: -10 }); break;
       case 'pickup': this.burst(e.b.x, e.b.y, e.b.z, 18, 70, { color: 0xffd23f, size: 4, life: 0.5, star: true }); break;
       case 'boxSpawn': this.burst(e.b.x, e.b.y, e.b.z, 8, 30, { color: 0xff4fa3, size: 3, life: 0.4 }); break;
-      case 'hit': this.burst(r.x, r.y + 6, r.z, 10, 55, { color: e.kind === 'zap' ? 0x7df9ff : e.kind === 'fire' ? 0xff6a00 : 0xffe066, star: e.kind !== 'fire', size: 4, life: 0.6, grav: 60 }); break;
+      case 'hit': this.burst(r.x, r.y + 6, r.z, 10, 55, { color: e.kind === 'zap' ? 0x7df9ff : e.kind === 'pulse' ? 0xc77dff : e.kind === 'fire' ? 0xff6a00 : 0xffe066, star: e.kind !== 'fire', size: 4, life: 0.6, grav: 60 }); break;
       case 'boom': this.boom(e.x, e.y, e.z, e.size, e.color); break;
       case 'shock': this.ring(e.x, e.y + 2, e.z, e.R, 0x7df9ff, 0.5); this.ring(e.x, e.y + 5, e.z, e.R * 0.7, 0xffffff, 0.35); this.spawn(e.x, e.y + 4, e.z, { color: 0x7df9ff, size: 30, life: 0.3, grow: 2 }); this.burst(e.x, e.y + 2, e.z, 24, 160, { color: 0xbde0fe, size: 4, life: 0.4, drag: 3 }); break;
+      case 'emp': { // v3.8: spherical EMP burst – vertical + horizontal rings so it reads the same for flyers
+        this.spawn(e.x, e.y, e.z, { color: 0xc77dff, size: e.R * 1.6, life: 0.35, grow: 1.2, drag: 0 });
+        this.ring(e.x, e.y, e.z, e.R, 0xb14dff, 0.5); this.ring(e.x, e.y + 2, e.z, e.R * 0.7, 0x7df9ff, 0.4);
+        { const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 6, 40), new THREE.MeshBasicMaterial({ color: 0xe0b0ff, transparent: true, opacity: 0.9, blending: ADD, depthWrite: false })); m.position.set(e.x, e.y, e.z); m.rotation.y = Math.random() * 3; this.scene.add(m); this.rings.push({ m, R: e.R, life: 0.5, age: 0 }); }
+        this.burst(e.x, e.y, e.z, 30, 150, { color: 0xc77dff, size: 4, life: 0.45, drag: 3 }); break; }
       case 'zap': { const g = new THREE.BufferGeometry(); const m = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xaaf8ff, transparent: true, blending: ADD, depthWrite: false })); this.scene.add(m); this.zaps.push({ m, chain: e.chain, age: 0, life: 0.5 });
         if (e.chain.length < 2) this.burst(r.x, r.y + 5, r.z, 14, 50, { color: 0x7df9ff, size: 3, life: 0.4 }); break; }
       case 'turboPad': this.burst(r.x, r.y + 2, r.z, 16, 70, { color: 0xffa200, size: 5, life: 0.4 }); this.ring(e.pad.x, e.pad.y + 1, e.pad.z, 22, 0xffb703, 0.35); break;
@@ -121,6 +123,10 @@ export class FX {
       const nose = new THREE.Mesh(new THREE.ConeGeometry(1, 2.4, 10).rotateZ(-Math.PI / 2), new THREE.MeshPhongMaterial({ color: 0xe63946 })); nose.position.x = 4.2; m.add(nose);
       for (let k = 0; k < 4; k++) { const f = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 2.2), new THREE.MeshPhongMaterial({ color: 0xe63946 })); f.position.x = -2.6; f.rotation.x = k * Math.PI / 2; m.add(f); }
       const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xffa040, blending: ADD, transparent: true, depthWrite: false })); fl.scale.set(6, 6, 1); fl.position.x = -4; m.add(fl);
+    } else if (p.kind === 'pulse') { // v3.8 EMP orb: violet core + two spinning rings + glow
+      m = new THREE.Group(); m.add(new THREE.Mesh(new THREE.SphereGeometry(2.2, 14, 10), new THREE.MeshBasicMaterial({ color: 0xe0b0ff })));
+      for (const k of [0, 1]) { const rg = new THREE.Mesh(new THREE.TorusGeometry(4, 0.35, 6, 28), new THREE.MeshBasicMaterial({ color: k ? 0x7df9ff : 0xb14dff, transparent: true, opacity: 0.9, blending: ADD, depthWrite: false })); rg.rotation.x = k ? Math.PI / 2 : 0.4; m.add(rg); }
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xa04dff, blending: ADD, transparent: true, depthWrite: false })); gl.scale.set(16, 16, 1); m.add(gl);
     } else { m = this.bombMesh(); }
     this.scene.add(m); return { m };
   }
@@ -135,19 +141,18 @@ export class FX {
     o.m.position.set(p.x, p.y, p.z);
     if (p.kind === 'rocket') { o.m.rotation.set(0, -Math.atan2(p.vz, p.vx), Math.atan2(p.vy, Math.hypot(p.vx, p.vz))); this.spawn(p.x - p.vx * 0.02, p.y, p.z - p.vz * 0.02, { color: 0x999999, add: false, alpha: 0.5, size: 3, life: 0.6, grow: 2 }); }
     else if (p.kind === 'ball') { o.m.rotation.z -= dt * 12; }
+    else if (p.kind === 'pulse') { o.m.children[1].rotation.y += dt * 9; o.m.children[2].rotation.z += dt * 7; o.m.children[3].scale.setScalar(14 + 4 * Math.sin(this.t * 30)); if (Math.random() < 0.6) this.spawn(p.x, p.y, p.z, { color: Math.random() < 0.5 ? 0xb14dff : 0x7df9ff, size: 3, life: 0.35, grow: 0.5 }); }
     else { o.m.rotation.x += dt * 8; o.m.userData.spark.material.rotation += dt * 9; }
   }
   makeHaz(h) {
     let m;
-    if (h.kind === 'oil') { m = new THREE.Mesh(new THREE.CircleGeometry(h.R, 24), new THREE.MeshBasicMaterial({ map: OIL, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6; m.position.set(h.x, h.y + 0.35, h.z); }
-    else if (h.kind === 'fire') { m = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xff7a1a, blending: ADD, transparent: true, depthWrite: false })); m.position.set(h.x, h.y + 4, h.z); }
+    if (h.kind === 'fire') { m = new THREE.Sprite(new THREE.SpriteMaterial({ map: SOFT, color: 0xff7a1a, blending: ADD, transparent: true, depthWrite: false })); m.position.set(h.x, h.y + 4, h.z); }
     else { m = this.bombMesh(); m.position.set(h.x, h.y + 2.6, h.z); }
     this.scene.add(m); return { m };
   }
   syncHaz(o, h, dt) {
     const f = h.age / h.life;
-    if (h.kind === 'oil') { const s = Math.min(1, h.age * 4) * (f > 0.85 ? (1 - f) / 0.15 : 1); o.m.scale.setScalar(Math.max(0.01, s)); }
-    else if (h.kind === 'fire') { const s = (h.R * 1.9) * (0.75 + 0.35 * Math.random()) * (f < 0.1 ? f * 10 : 1 - f * 0.6); o.m.scale.set(s, s * 1.3, 1); o.m.material.opacity = 0.9 * (1 - f); o.m.material.color.setHSL(0.05 + 0.06 * Math.random(), 1, 0.55);
+    if (h.kind === 'fire') { const s = (h.R * 1.9) * (0.75 + 0.35 * Math.random()) * (f < 0.1 ? f * 10 : 1 - f * 0.6); o.m.scale.set(s, s * 1.3, 1); o.m.material.opacity = 0.9 * (1 - f); o.m.material.color.setHSL(0.05 + 0.06 * Math.random(), 1, 0.55);
       if (Math.random() < 0.25) this.spawn(h.x + rnd(-3, 3), h.y + 4, h.z + rnd(-3, 3), { color: 0xffb703, size: 2.5, vy: rnd(20, 50), life: 0.6, drag: 0.5 }); }
     else { const blink = Math.sin(this.t * (10 + 30 * f)) > 0; o.m.userData.led.visible = blink; o.m.userData.spark.material.rotation += dt * 9; }
   }

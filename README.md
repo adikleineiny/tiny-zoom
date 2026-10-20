@@ -1,4 +1,4 @@
-# Tiny Zoom – RC toy racing v3.7
+# Tiny Zoom – RC toy racing v3.8
 
 Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
