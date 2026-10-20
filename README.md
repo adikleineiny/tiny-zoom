@@ -17,6 +17,9 @@ Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765
 - Tests: `tests/online_test.py [url] [--shots]` – two headless Chrome contexts: create/join, vehicle picks, shared countdown, two-way position sync, smooth interpolation, crate pickup, client fires EMP pulse (projectile on both), hit forwarded, bomb state, identical finish order/times, bots on host, client disconnect → bot takes over, closed room → "not found", single-player afterwards, no console errors. Screenshots 32/33.
 - Limitations: see the v3.9 report (strict NATs → relay with ~100–200 ms extra latency; public relays are best-effort; host tab must stay in the foreground; client positions are trusted).
 
+### v3.9 weapons: 👻 Ghost Mode replaces 🥊 Spring Glove; ⚡ Electrify is global
+See the weapon list below. Tests: `tests/weapons_test.py` (zapGlobal, ghost immunity vs bomb/pulse/zap/rocket/shock/ball/fire, pass-through, timer), `tests/online_test.py` (global zap + ghost synced). Screenshot 34 via `tests/graphics_shots39.py`.
+
 ## v3.7 – Sketchfab CC-BY motorcycle, scooter & drone
 - **Motorcycle**: “Motorcycle” by animanyarty, **Scooter**: “Electric Scooter (Low-poly, game-ready)” by Delandi, **Drone**: “Quadcopter drone” by Annelida – all **CC BY 4.0** from Sketchfab (see CREDITS.md). Wheels (moto/scooter) auto-split onto spinning/steering pivots, drone props spin; meshopt + WebP ≤1K → `models/moto.glb`, `scooter.glb`, `drone.glb`. Physics/speeds unchanged. Screenshots 28/29 via `tests/graphics_shots37.py`.
 
@@ -68,12 +71,12 @@ Drive through a glowing **?** box (they respawn after 4 s): the HUD slot rolls s
 - 💣 **Sticky Bomb** – lobbed; sticks to a racer and beeps faster and faster. Bump another racer to pass it on before it blows (misses become a floor mine).
 - 💨 **Nitro Turbo** – big speed boost with flame trail, FOV kick & speed lines; anyone you ram gets knocked aside.
 - 🔥 **Fire Trail** – short flamethrower ahead + burning trail behind: cars spin out, flyers get thrown up by the heat.
-- ⚡ **Electrify** – chain lightning jumps between up to 3 nearby racers and cuts their power (flyers drop).
+- ⚡ **Electrify** (v3.9) – zaps **every** opponent anywhere on the track (no radius/chain): 0.6 s power cut + speed ×0.6, identical for ground and air vehicles; ghosts and briefly-immune racers are spared.
 - 🚀 **Homing Rocket** – chases the racer ahead of you and flips it.
 - 🔴 **Bouncy Ball** – bounces off walls and bowls racers over.
 - 💥 **Shockwave** – pushes everyone nearby away.
 - 🛢️ **Oil Slick** – dropped behind; ground racers (and low-skimming flyers) spin out.
-- 🥊 **Spring Glove** – boing! punches the racer in front.
+- 👻 **Ghost Mode** (v3.9, replaces the Spring Glove, same pick chance) – 4.5 s translucent, pale-blue and ghostly: drive through other racers, immune to every attack (bombs don't stick or hurt, EMP, Electrify, rocket, shockwave, ball, fire). AI uses it when attacked/followed/carrying a bomb. Synced online.
 
 ## Track "From the Kitchen to the Garden" XL (~88 m, ~77–82 s/lap ground, ~83–88 s flyers)
 1. **Kitchen Floor** – tiles, start/finish, turbo pad. 2. **Under the Table** – chair legs, low ceiling. 3. **Pet Door** – 30 × 26 cm flap.

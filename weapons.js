@@ -6,8 +6,8 @@ export const WEAPONS = {
   shock:  { icon: '💥', name: 'Shockwave',     tip: 'Pushes everyone nearby away' },
   rocket: { icon: '🚀', name: 'Homing Rocket', tip: 'Chases the racer ahead and flips it' },
   pulse:  { icon: '🌀', name: 'EMP Pulse',     tip: 'Homing orb – EMP burst spins & slows everyone it catches, on the ground or in the air' }, // v3.8 (replaces Oil Slick)
-  zap:    { icon: '⚡', name: 'Electrify',     tip: 'Chain lightning – kills their power' },
-  glove:  { icon: '🥊', name: 'Spring Glove',  tip: 'Boing! Punches the racer in front' },
+  zap:    { icon: '⚡', name: 'Electrify',     tip: 'Zaps EVERY rival on the track – short power cut' },
+  ghost:  { icon: '👻', name: 'Ghost Mode',    tip: '4.5 s: pass through racers, immune to every attack' }, // v3.9 (replaces Spring Glove)
   bomb:   { icon: '💣', name: 'Sticky Bomb',   tip: 'Lobbed behind you – sticks on whoever follows. Bump someone to pass it!' },
   turbo:  { icon: '💨', name: 'Nitro Turbo',   tip: 'Flame boost – ram racers aside' },
   fire:   { icon: '🔥', name: 'Fire Trail',    tip: 'Flamethrower + burning trail behind you' },
@@ -56,7 +56,6 @@ export class Weapons {
       if (r.input.fire) { r.input.fire = false; if (S.running) this.use(r); }
       if (r.ai && (!r.isPlayer || r.autopilot) && r.weapon && S.running) this.aiThink(r, dt);
       if (r.fireT > 0) this.fireTick(r, dt);
-      if (r.gloveT > 0) r.gloveT -= dt;
       if (r.bomb) {
         r.bomb.t -= dt; r.bomb.passCD -= dt;
         if (r.bomb.t <= 0) { const b = r.bomb; r.bomb = null; r.immuneT = 0; this.explode(r.x, r.y, r.z, b.owner, r); }
@@ -101,25 +100,12 @@ export class Weapons {
         if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); const d = Math.hypot(f.d, o.y - r.y); if (f.cos > 0.3 && d < C.pulse.range && d < best) { best = d; tgt = o; } }
         spawn('pulse', { vx: c * C.pulse.speed, vy: 0, vz: s * C.pulse.speed, life: C.pulse.life, target: tgt, y: r.y + 5 }); break;
       }
-      case 'zap': {
-        const pts = [r], hitSet = new Set([r]); let cur = r;
-        for (let k = 0; k < C.zap.chainMax; k++) {
-          let nb = null, bd = k === 0 ? C.zap.range : C.zap.chainRange;
-          for (const o of this.sim.racers) { if (hitSet.has(o)) continue; const d = Math.hypot(o.x - cur.x, o.z - cur.z, o.y - cur.y); if (d < bd) { bd = d; nb = o; } }
-          if (!nb) break; hitSet.add(nb); pts.push(nb); cur = nb;
-          S.hit(nb, { stun: C.zap.stun, slow: C.zap.slow, by: r, kind: 'zap' });
-        }
-        S.emit({ type: 'zap', chain: pts.map(o => ({ x: o.x, y: o.y + 4, z: o.z, r: o })), r }); break;
+      case 'zap': { // v3.9: every opponent anywhere on the track (ghosts are immune via sim.hit); local spark on each victim
+        S.emit({ type: 'zap', chain: [{ x: r.x, y: r.y + 4, z: r.z, r }], r });
+        for (const o of this.others(r)) if (S.hit(o, { stun: C.zap.stun, slow: C.zap.slow, by: r, kind: 'zap' })) S.emit({ type: 'zap', chain: [{ x: o.x, y: o.y + 4, z: o.z, r: o }], r: o });
+        break;
       }
-      case 'glove': {
-        r.gloveT = C.glove.time;
-        for (const o of this.others(r)) {
-          const f = this.front(r, o); if (f.d > C.glove.reach + o.V.radius || f.cos < C.glove.cone || Math.abs(o.y - r.y) > 14) continue;
-          const side = (f.dx * -s + f.dz * c) >= 0 ? 1 : -1;
-          S.hit(o, { kx: c * C.glove.knock - s * side * C.glove.knock * 0.4, kz: s * C.glove.knock + c * side * C.glove.knock * 0.4, up: C.glove.up, spin: C.glove.spin, slow: C.glove.slow, by: r, kind: 'glove' });
-        }
-        S.emit({ type: 'glove', r }); break;
-      }
+      case 'ghost': r.ghostT = C.ghost.time; S.emit({ type: 'ghost', r }); break;
       case 'turbo': r.turboT = C.turbo.time; S.emit({ type: 'turbo', r }); break;
       case 'fire': r.fireT = C.fire.time; r._patchT = 0; S.emit({ type: 'fire', r }); break;
     }
@@ -164,7 +150,7 @@ export class Weapons {
   }
   hitRacer(p, rad) {
     for (const o of this.sim.racers) {
-      if (o === p.owner && (p.age < 0.5 || p.kind === 'bomb')) continue; // a thrown bomb never sticks to its thrower
+      if (o.ghostT > 0 || (o === p.owner && (p.age < 0.5 || p.kind === 'bomb'))) continue; // v3.9 ghosts: nothing sticks // a thrown bomb never sticks to its thrower
       if (Math.abs(o.x - p.x) < rad + o.V.radius && Math.abs(o.z - p.z) < rad + o.V.radius && Math.hypot(o.x - p.x, o.z - p.z) < rad + o.V.radius && p.y > o.y - 3 && p.y < o.y + o.V.height + 6) return o;
     }
     return null;
@@ -253,8 +239,8 @@ export class Weapons {
       case 'rocket': go ||= os.some(o => { const dp = o.progress - r.progress; return dp > 10 && dp < C.rocket.range * 0.7; }); break;
       case 'bomb': go ||= behind(140); break; // thrown backwards → fire when someone is close behind
       case 'shock': go ||= near(C.shock.radius * 0.75); break;
-      case 'zap': go ||= near(C.zap.range * 0.85); break;
-      case 'glove': go ||= inFront(C.glove.reach, 0.85); break;
+      case 'zap': go ||= os.filter(o => o.ghostT <= 0 && o.immuneT <= 0).length >= Math.min(2, os.length); break; // v3.9 global zap
+      case 'ghost': go ||= behind(120) || near(45) || this.proj.some(p => p.owner !== r && (p.target === r || Math.hypot(p.x - r.x, p.z - r.z) < 60)) || !!r.bomb; break;
       case 'pulse': go ||= os.some(o => { const dp = o.progress - r.progress; return dp > 10 && dp < C.pulse.range * 0.7; }) || near(C.pulse.radius * 0.8); break;
       case 'fire': go ||= behind(90) || inFront(C.fire.coneReach, 0.9); break;
       case 'turbo': go ||= Math.abs(this.T.curv[(r.idx + 8) % this.T.N]) < 0.0025 && (r.type === 'drone' || r.grounded); break;

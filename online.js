@@ -14,13 +14,13 @@ export const makeCode = (n = 5) => Array.from(crypto.getRandomValues(new Uint8Ar
 export const validCode = c => /^[A-Z2-9]{4,5}$/.test(c) && [...c].every(ch => CODE_CHARS.includes(ch));
 const SEND_HZ = 15, R2 = v => Math.round(v * 100) / 100, R1 = v => Math.round(v * 10) / 10;
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-const EV_TYPES = new Set(['pickup', 'boxSpawn', 'gotWeapon', 'hit', 'boom', 'shock', 'emp', 'zap', 'glove', 'turbo', 'fire', 'bombStick', 'bombPass', 'ballBounce', 'use']);
+const EV_TYPES = new Set(['pickup', 'boxSpawn', 'gotWeapon', 'hit', 'boom', 'shock', 'emp', 'zap', 'ghost', 'turbo', 'fire', 'bombStick', 'bombPass', 'ballBounce', 'use']);
 
 // own-vehicle state → compact array (motion + race progress); host-owned weapon fields are sent separately
 function pack(r) {
   const f = (r.grounded ? 1 : 0) | (r.drifting ? 2 : 0) | (r.finished ? 4 : 0) | (r.scrapeT > 0 ? 8 : 0);
   return [R2(r.x), R2(r.y), R2(r.z), R2(r.heading), R1(r.vx), R1(r.vy), R1(r.vz), f, R2(r.spinT), R2(r.tumbleT), R2(r.tumbleTot), R2(r.stunT), R2(r.immuneT), R2(r.turboT),
-    R2(r.rescueT), R1(r.progress), r.lapsDone, R2(r.finishTime), isFinite(r.best) ? R2(r.best) : -1, R2(r.input.steer || 0), R2(r.input.thr || 0), R2(r.spool || 0), R2(r.groundY || 0), R2(r.landImpact || 0), r.hits || 0, R2(r.input.pitch || 0), R2(r.input.alt || 0)];
+    R2(r.rescueT), R1(r.progress), r.lapsDone, R2(r.finishTime), isFinite(r.best) ? R2(r.best) : -1, R2(r.input.steer || 0), R2(r.input.thr || 0), R2(r.spool || 0), R2(r.groundY || 0), R2(r.landImpact || 0), r.hits || 0, R2(r.input.pitch || 0), R2(r.input.alt || 0), R2(r.ghostT || 0)];
 }
 function unpackInto(r, a, T) {
   [r.x, r.y, r.z, r.heading, r.vx, r.vy, r.vz] = a; const f = a[7];
@@ -28,7 +28,7 @@ function unpackInto(r, a, T) {
   r.spinT = a[8]; r.tumbleT = a[9]; r.tumbleTot = a[10] || 1; r.stunT = a[11]; r.immuneT = a[12]; r.turboT = a[13]; r.rescueT = a[14];
   r.progress = a[15]; r.lapsDone = a[16];
   if ((f & 4) && !r.finished) { r.finished = true; r.finishTime = a[17]; } r.best = a[18] < 0 ? Infinity : a[18];
-  r.input.steer = a[19]; r.input.thr = a[20]; r.spool = a[21]; r.groundY = a[22]; r.landImpact = a[23]; if (a[24] > (r.hits || 0)) r.hits = a[24]; r.input.pitch = a[25] || 0; r.input.alt = a[26] || 0;
+  r.input.steer = a[19]; r.input.thr = a[20]; r.spool = a[21]; r.groundY = a[22]; r.landImpact = a[23]; if (a[24] > (r.hits || 0)) r.hits = a[24]; r.input.pitch = a[25] || 0; r.input.alt = a[26] || 0; r.ghostT = a[27] || 0;
   if (T) { const pr = T.project(r.x, r.z, r.idx); r.idx = pr.idx; r.s = pr.s; r.lat = pr.lat; r.section = T.section[r.idx]; r.surface = T.surfaceAt(r.x, r.z, r.idx); }
 }
 // interpolated motion between two packed samples
@@ -135,7 +135,7 @@ export class Online {
       case 'start': if (from === this.hostId && m.roster.some(e => e.id === this.net.id)) this.beginRace(m); break;
       case 's': if (from === this.hostId && this.state === 'race' && m.k === this.raceSeq) this.applySnap(m); break;
       case 'hit': if (this.state === 'race' && m.k === this.raceSeq && c.player) { const by = c.sim.racers[m.by]; c.sim.hit(c.player, { ...m.o, by, _net: true }); } break;
-      case 'boost': if (c.player && m.k === this.raceSeq) { if (m.w === 'turbo') c.player.turboT = CONFIG.weapons.turbo.time; } break;
+      case 'boost': if (c.player && m.k === this.raceSeq) { if (m.w === 'turbo') c.player.turboT = CONFIG.weapons.turbo.time; if (m.w === 'ghost') c.player.ghostT = CONFIG.weapons.ghost.time; } break; // owner runs the ghost timer and streams it
       case 'left': if (this.state === 'race') { const r = c.sim.racers[m.slot]; if (r) { if (m.bot) { r.name = BOT_NAMES[r.slot] + ' (bot)'; c.relabel?.(r); } else { r.left = true; c.hideRacer?.(r); } c.toast(`👋 ${r.name} left`); } } break;
     }
   }
@@ -234,7 +234,7 @@ export class Online {
       this.evq = this.evq || [];
       for (const e of sim.events) if (EV_TYPES.has(e.type)) {
         const s = this.ser(e); if (s) this.evq.push(s);
-        if (e.type === 'use' && e.r.puppet && e.r.netId && e.w === 'turbo') this.net.send({ t: 'boost', k: this.raceSeq, w: e.w }, e.r.netId);
+        if (e.type === 'use' && e.r.puppet && e.r.netId && (e.w === 'turbo' || e.w === 'ghost')) this.net.send({ t: 'boost', k: this.raceSeq, w: e.w }, e.r.netId);
       }
       for (const r of sim.racers) if (r.finished && !this.finishOrder.includes(r.slot)) this.finishOrder.push(r.slot);
       if ((this.snapT -= dt) <= 0) { this.snapT = 1 / SEND_HZ; this.sendSnap(); }

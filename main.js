@@ -283,7 +283,8 @@ function updateHUD(dt) {
   $('spd').textContent = Math.round(player.speed); { const top = player.type === 'car' ? player.V.topSpeed * 1.6 : 220, f = Math.min(1, player.speed / top); const g = $('gaugeArc'); if (g) g.style.strokeDashoffset = String(100 - f * 100); $('hudBat').classList.toggle('turbo', player.turboT > 0); }
   $('alt').textContent = player.type === 'drone' ? `↕${Math.round(player.y)}` : '';
   const w = $('warn'); let msg = '', ok = false;
-  if (player.bomb) msg = `💣 Sticky bomb ${player.bomb.t.toFixed(1)}s – bump someone!`;
+  if (player.ghostT > 0) { msg = `👻 Ghost mode ${player.ghostT.toFixed(1)}s – untouchable!`; ok = true; }
+  else if (player.bomb) msg = `💣 Sticky bomb ${player.bomb.t.toFixed(1)}s – bump someone!`;
   else if (player.stunT > 0) msg = '⚡ Power cut!';
   else if (player.gateBlockT > 0) msg = player.section === 5 ? 'No flying over the hill – into the pipe!' : 'Lower! Pass under the gate';
   else if (player.rescueT > 0) { msg = '🎣 Back on track…'; ok = true; }

@@ -108,6 +108,7 @@ export class FX {
       case 'zap': { const g = new THREE.BufferGeometry(); const m = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xaaf8ff, transparent: true, blending: ADD, depthWrite: false })); this.scene.add(m); this.zaps.push({ m, chain: e.chain, age: 0, life: 0.5 });
         if (e.chain.length < 2) this.burst(r.x, r.y + 5, r.z, 14, 50, { color: 0x7df9ff, size: 3, life: 0.4 }); break; }
       case 'turboPad': this.burst(r.x, r.y + 2, r.z, 16, 70, { color: 0xffa200, size: 5, life: 0.4 }); this.ring(e.pad.x, e.pad.y + 1, e.pad.z, 22, 0xffb703, 0.35); break;
+      case 'ghost': this.burst(r.x, r.y + 5, r.z, 24, 50, { color: 0xcfe8ff, size: 5, life: 0.7, grow: 1.5 }); this.ring(r.x, r.y + 3, r.z, 18, 0x9fd0ff, 0.5); break;
       case 'turbo': this.burst(r.x, r.y + 3, r.z, 14, 60, { color: 0x4cc9f0, size: 5, life: 0.4 }); break;
       case 'bombStick': case 'bombPass': { const q = e.to || r; this.burst(q.x, q.y + 10, q.z, 10, 40, { color: 0xff2a3a, size: 4, life: 0.4, star: true }); break; }
       case 'bump': this.burst(r.x + Math.cos(r.heading) * 6, r.y + 3, r.z + Math.sin(r.heading) * 6, 5, 50, { color: 0xffffaa, size: 2.5, life: 0.25 }); break;
@@ -192,17 +193,16 @@ export class FX {
       a.bomb.position.set(r.x, r.y + 13 + Math.sin(t * 8) * 0.5, r.z); a.bomb.scale.setScalar(1 + 0.12 * Math.max(0, Math.sin(t * (8 + 30 * f))));
       a.bomb.userData.led.visible = Math.sin(t * (8 + 40 * f)) > 0; a.bomb.userData.spark.material.rotation += dt * 9;
     } else if (a.bomb) a.bomb.visible = false;
-    // spring boxing glove
-    if (r.gloveT > 0) {
-      if (!a.glove) {
-        const g = new THREE.Group(); const spring = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1, 8, 1, true).rotateZ(Math.PI / 2), new THREE.MeshPhongMaterial({ color: 0xc0c0c0, wireframe: true })); g.add(spring);
-        const glove = new THREE.Mesh(new THREE.SphereGeometry(2.6, 14, 10), new THREE.MeshPhongMaterial({ color: 0xe63946, shininess: 100 })); glove.scale.set(1.2, 1, 1); g.add(glove);
-        const thumb = new THREE.Mesh(new THREE.SphereGeometry(1.1, 10, 8), glove.material); thumb.position.set(0.4, 0.4, 2.2); glove.add(thumb);
-        g.userData = { spring, glove }; mesh.root.add(g); a.glove = g;
-      }
-      const T = CONFIG.weapons.glove.time, f = 1 - r.gloveT / T, ext = Math.sin(Math.min(1, f) * Math.PI) * CONFIG.weapons.glove.reach * 0.85;
-      a.glove.visible = true; a.glove.position.set(7, 5, 0); a.glove.userData.spring.scale.set(ext + 0.1, 1, 1); a.glove.userData.spring.position.x = ext / 2; a.glove.userData.glove.position.x = ext + 2;
-    } else if (a.glove) a.glove.visible = false;
+    // v3.9 Ghost mode: translucent pale-blue vehicle + wisps (own materials cloned once, originals restored after)
+    const gh = r.ghostT > 0;
+    if (gh !== !!a.ghost) {
+      mesh.root.traverse(o => { if (!o.isMesh || o.userData.noGhost) return;
+        if (gh) { o.userData.mat0 = o.material; o.material = [].concat(o.material).map(m => { const g = m.clone(); g.transparent = true; g.opacity = 0.32; g.depthWrite = false; if (g.color) g.color.lerp(new THREE.Color(0xbfe0ff), 0.6); if (g.emissive) { g.emissive.setHex(0x6fb8ff); g.emissiveIntensity = 0.6; } return g; }); if (!Array.isArray(o.userData.mat0)) o.material = o.material[0]; }
+        else if (o.userData.mat0) { for (const m of [].concat(o.material)) m.dispose(); o.material = o.userData.mat0; o.userData.mat0 = null; } });
+      a.ghost = gh;
+    }
+    if (gh) { const fl = 0.22 + 0.12 * Math.sin(t * 9); mesh.root.traverse(o => { if (o.isMesh && o.userData.mat0) for (const m of [].concat(o.material)) m.opacity = fl + (r.ghostT < 1 && Math.sin(t * 30) > 0 ? 0.4 : 0); });
+      if (Math.random() < 0.6) this.spawn(r.x + rnd(-5, 5), r.y + rnd(2, 9), r.z + rnd(-5, 5), { color: Math.random() < 0.5 ? 0xcfe8ff : 0x9fd0ff, size: 4, life: 0.6, vy: 12, grow: 1.2, alpha: 0.7 }); }
     // turbo flames + speed streaks
     if (r.turboT > 0) for (let k = 0; k < 2; k++) {
       const bx = r.x - c * 8 + rnd(-1, 1), bz = r.z - s * 8 + rnd(-1, 1), by = r.y + (r.type === 'drone' ? 3 : 3);

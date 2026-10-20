@@ -17,7 +17,7 @@ export class Racer {
       finished: false, finishTime: 0, input: { thr: 0, steer: 0, alt: 0, pitch: 0 }, ai: null,
       onPad: false, padCD: 0, padHits: 0, wrongWayT: 0, surface: 'tile', section: 1, gateBlockT: 0, scrapeT: 0,
       model: null, grounded: true, groundY: 0, jumpCD: 0, airT: 0, landImpact: 0, drifting: false,
-      spinT: 0, spinDir: 1, tumbleT: 0, tumbleTot: 1, stunT: 0, immuneT: 0, turboT: 0, fireT: 0,
+      spinT: 0, spinDir: 1, tumbleT: 0, tumbleTot: 1, stunT: 0, immuneT: 0, turboT: 0, fireT: 0, ghostT: 0,
       weapon: null, rollT: 0, holdT: 0, bomb: null, hits: 0, shots: 0,
       rescueT: 0, rescues: 0, stillT: 0, tryStillT: 0, noProgT: 0, _embT: 0, _bestProg: -1e9, stuckMaxT: 0,
     }, o);
@@ -98,6 +98,7 @@ export class Sim {
   // Apply a weapon / ram hit. o: { kx, kz, up, spin, tumble, stun, slow, by, kind }
   hit(r, o) {
     const W = CONFIG.weapons.hit;
+    if (r.ghostT > 0) return false; // v3.9 Ghost mode: immune to everything
     if (this.hitHook && this.hitHook(r, o) === false) return false; // v3.9 online: client ignores local hits / host forwards hits on remote players
     if (r.immuneT > 0 || (r.finished && !r.isPlayer && false)) return false;
     const m = 1 / (r.V.mass || 1), slow = o.slow ?? 0.6;
@@ -218,14 +219,14 @@ export class Sim {
       if (r.respawnReq) { r.respawnReq = false; if (this.running && CONFIG.rescue?.enabled) this.rescue(r, 'ai'); else this.respawn(r); }
       if (r.rescueT > 0) { this.rescueStep(r, dt); continue; }
       r._px = r.x; r._pz = r.z; r._py = r.y; r._lat = r.lat;
-      for (const k of ['spinT', 'tumbleT', 'stunT', 'immuneT', 'turboT', 'jumpCD']) if (r[k] > 0) r[k] = Math.max(0, r[k] - dt);
+      for (const k of ['spinT', 'tumbleT', 'stunT', 'immuneT', 'turboT', 'jumpCD', 'ghostT']) if (r[k] > 0) r[k] = Math.max(0, r[k] - dt);
       if (r.type === 'car') { this.carStep(r, dt); this.collideSolids(r); this.groundSupport(r, dt); }
       else { this.droneStep(r, dt); this.collideSolids(r); }
     }
     // vehicle-vehicle: mass-weighted bouncy contact, turbo rams, sticky-bomb passing
     const R = this.racers, Wt = CONFIG.weapons.turbo;
     for (let a = 0; a < R.length; a++) for (let b = a + 1; b < R.length; b++) {
-      const A = R[a], B = R[b]; if (A.rescueT > 0 || B.rescueT > 0) continue; // being rescued = ghost
+      const A = R[a], B = R[b]; if (A.rescueT > 0 || B.rescueT > 0 || A.ghostT > 0 || B.ghostT > 0) continue; // being rescued / v3.9 Ghost mode = pass through
       const dx = B.x - A.x, dz = B.z - A.z; const d = Math.hypot(dx, dz);
       const ra = A.V.radius, rb = B.V.radius;
       if (d < ra + rb && d > 0.001 && Math.abs(A.y - B.y) < 7) {
