@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Tiny Zoom v3.8 — Toy Racing</title>
+<title>Tiny Zoom v3.9 — Toy Racing</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -20,7 +20,7 @@
 <div id="touchLayer" class="hidden"></div>
 
 <div id="hud" class="hidden">
-  <div id="hudPos" class="panel"><div class="lbl">Place</div><div><span id="posNum">4</span><small>/4</small></div></div>
+  <div id="hudPos" class="panel"><div class="lbl">Place</div><div><span id="posNum">4</span><small id="posTot">/4</small></div></div>
   <div id="hudLap" class="panel"><div id="lapNum">Lap 1/3</div><div id="lapTime" class="mono">0:00.00</div></div>
   <div id="hudTimes" class="panel"><div>Total <b id="totTime" class="mono">0:00.0</b></div><div>Best <b id="bestTime" class="mono">—</b></div></div>
   <canvas id="minimap" width="150" height="132"></canvas>
@@ -40,7 +40,7 @@
 <div id="menu" class="overlay">
   <div class="menuBox">
     <div class="menuHead">
-      <h1>Tiny Zoom <span class="tag">v3.8</span></h1>
+      <h1>Tiny Zoom <span class="tag">v3.9</span></h1>
       <div class="sub">RC toy racing · tiny vehicles, giant world · jumps &amp; secret weapons</div>
     </div>
     <div class="menuBody">
@@ -61,6 +61,7 @@
         <div class="cardTitle">Pick a vehicle:</div>
         <div class="vehicles" id="vehList"></div>
         <button id="btnStart" class="big">Let's race!</button>
+        <button id="btnOnline" class="big alt">🌐 Online</button>
         <button class="link btnQuality" id="btnQuality">⚙️ Graphics</button>
         <button class="link btnControls" id="btnControls">🎮 Controls: One stick</button>
         <button id="btnHelp" class="link">How do I control?</button>
@@ -76,7 +77,7 @@
     <p><b>Scooter model</b> – “Electric Scooter (Low-poly, game-ready)” by Delandi (delandi), Sketchfab (https://sketchfab.com/3d-models/electric-scooter-low-poly-game-ready-e22bffc784b04a93acc83599fa7a81c0). License: <b>CC BY 4.0</b> (creativecommons.org/licenses/by/4.0/). Modified: re-oriented/scaled, wheels split for animation, textures WebP ≤1K, meshopt-compressed.</p>
     <p><b>Drone model</b> – “Quadcopter drone” by Annelida, Sketchfab (https://sketchfab.com/3d-models/quadcopter-drone-ca8f0f70a1014e77a6777dc248e9bf5a). License: <b>CC BY 4.0</b> (creativecommons.org/licenses/by/4.0/). Modified: re-oriented/scaled, rotors re-pivoted, textures WebP ≤1K, meshopt-compressed.</p>
     <p>Track, house, textures, UI, sounds – original, generated in code for Tiny Zoom.</p>
-    <p><b>Software</b> – three.js incl. GLTFLoader, post-processing and meshoptimizer decoder: MIT License, © three.js authors / © Arseny Kapoulkine.</p>
+    <p><b>Software</b> – three.js incl. GLTFLoader, post-processing and meshoptimizer decoder: MIT License, © three.js authors / © Arseny Kapoulkine. Online play: Trystero (MIT, © Dan Motzenbecker), nostr-tools (Unlicense), noble-hashes / noble-curves (MIT, © Paul Miller).</p>
     <button class="big" id="btnCreditsClose">Close</button>
   </div>
   <div id="help" class="hidden">
@@ -87,11 +88,34 @@
     <p><b>🎁 Weapons:</b> Drive through a glowing <b>?</b> box – the weapon slot (bottom left, next to the left stick) rolls a random weapon. <b>Tap the slot</b> to fire it (or press F). Hits make racers spin/tumble briefly. A sticky bomb can be passed on by bumping another racer!</p>
     <p><b>🛟 Flight assist:</b> Leave the left stick centred and the drone/helicopter holds a safe height by itself – it follows the hills and ducks under gates, tables and the tunnel. Not steering? The nose gently lines up with the track. Drone and helicopter fly through glowing orange/cyan <b>turbo rings</b> instead – the assist lines you up with them.</p>
     <p><b>🚀 Turbo pads:</b> 15 orange chevron pads along the track – before jumps, ramps and the tunnel, on the straights, and in every slow grass / mud / puddle stretch. Drive over one for a short, strong speed boost. Flyers: a floating <b>turbo ring</b> hangs above every pad – fly through it for the same boost. 💣 Bombs are lobbed <b>behind</b> you. 🌪️ Over grass, mud and puddles flyers meet swirling <b>wind gusts</b> that slow them just like the ground slows cars (pale-blue on the minimap). All vehicles have the same speed: win with RC parts crate prizes and turbo pads!</p>
+    <p><b>🌐 Online:</b> tap <b>Online</b> → <b>Create room</b> and tell your friends the code, or type a friend's code and tap <b>Join</b>. Everyone picks a vehicle in the lobby; the host can add AI bots and taps <b>Start race</b>. No login or account. If a player drops out, an AI bot takes over their car (when bots are on) or the car is removed.</p>
     <p><b>⌨️ Keyboard:</b> W/S or ↑/↓ = throttle / forward-back · A/D or ←/→ = steer (combine, e.g. W+A, for diagonals) · Space = jump (ground) / up (flyers) · E up · Shift/Q down · F = fire · R = reset to track · Esc = pause</p>
     <p class="small"><b>Credits:</b> see 📜 Credits in the menu (race car: “Toy Car” CC0 · helicopter: NASA Ingenuity, public domain · motorcycle “Motorcycle” by animanyarty, scooter “Electric Scooter (Low-poly, game-ready)” by Delandi, drone “Quadcopter drone” by Annelida – all CC BY 4.0, Sketchfab · three.js MIT).</p>
     <button class="big" id="btnHelpClose">Got it</button>
   </div>
 </div>
+
+
+<div id="online" class="overlay hidden"><div class="dialog wide" id="onBox">
+  <h2>🌐 Online race</h2>
+  <div id="onHome">
+    <p class="small">Race 2–6 friends with a room code. No login, no account.</p>
+    <button class="big" id="btnCreate">Create room</button>
+    <div class="joinRow"><input id="joinCode" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Room code"><button class="big alt" id="btnJoin">Join</button></div>
+    <div id="onErr" class="small err"></div>
+    <button class="big alt" id="btnOnBack">Back</button>
+  </div>
+  <div id="onJoining" class="hidden"><p>Looking for room <b id="joiningCode"></b>…</p><button class="big alt" id="btnJoinCancel">Cancel</button></div>
+  <div id="onLobby" class="hidden">
+    <div class="codeBox">Room code <b id="roomCode">-----</b> <span class="small">share it with your friends</span></div>
+    <ul id="lobbyList"></ul>
+    <div class="small">Your vehicle:</div>
+    <div id="onVeh" class="onVeh"></div>
+    <div id="hostOpts" class="small"><label>🤖 AI bots: <select id="botSel"><option value="off">Off – humans only</option><option value="4">Fill to 4 racers</option><option value="6">Fill to 6 racers</option></select></label></div>
+    <div id="lobbyMsg" class="small"></div>
+    <div class="row"><button class="big" id="btnOnStart">Start race</button><button class="big alt" id="btnLeave">Leave</button></div>
+  </div>
+</div></div>
 
 <div id="pause" class="overlay hidden"><div class="dialog"><h2>Paused</h2>
   <button class="big" id="btnResume">Resume</button><button class="big alt" id="btnRestart">New race</button><button class="big alt btnQuality" id="btnQuality2">⚙️ Graphics</button><button class="big alt btnControls" id="btnControls2">🎮 Controls: One stick</button><button class="big alt" id="btnMenu">Menu</button></div></div>

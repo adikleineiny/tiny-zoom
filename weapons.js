@@ -42,7 +42,7 @@ export class Weapons {
   give(r, w) { r.weapon = w; r.rollT = 0; r.holdT = 0; r.aiDelay = rand(...this.C.aiUseDelay); }
   step(dt) {
     const C = this.C, S = this.sim, R = S.racers;
-    if (!C.enabled) return;
+    if (!C.enabled || this.remote) return; // v3.9: online clients mirror the host's crates/projectiles instead
     for (const b of this.boxes) if (!b.active && (b.t -= dt) <= 0) { b.active = true; S.emit({ type: 'boxSpawn', b }); }
     for (const r of R) {
       if (r.rollT > 0) { r.rollT -= dt; if (r.rollT <= 0) { this.give(r, r.rollPick || this.pick()); r.rollPick = null; S.emit({ type: 'gotWeapon', r, w: r.weapon }); } }

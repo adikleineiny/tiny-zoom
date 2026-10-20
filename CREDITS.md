@@ -37,3 +37,8 @@ motorcycle simplified (~98.5k → ~42k tris); meshopt-compressed. Downloaded via
 These works are licensed under CC BY 4.0 by their authors; no endorsement by the authors is implied.
 
 Decoder: `vendor/addons/libs/meshopt_decoder.module.js` – meshoptimizer, MIT © Arseny Kapoulkine. GLTFLoader – three.js, MIT.
+
+## Online multiplayer libraries (v3.9, bundled in `vendor/`, loaded only when Online is opened)
+- **Trystero** 0.26.0 (Nostr strategy) – © Dan Motzenbecker – MIT License – https://github.com/dmotz/trystero → `vendor/trystero-nostr.min.js`
+- **nostr-tools** 2.25.2 (event signing only) – Unlicense – https://github.com/nbd-wtf/nostr-tools → `vendor/nostr-pure.min.js`
+- Both include **noble-hashes / noble-curves / noble-secp256k1** – © Paul Miller – MIT License – https://paulmillr.com/noble/

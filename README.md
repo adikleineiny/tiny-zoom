@@ -1,8 +1,21 @@
-# Tiny Zoom – RC toy racing v3.8
+# Tiny Zoom – RC toy racing v3.9
 
 Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
+
+## v3.9 – online multiplayer with room codes (no login)
+**How to play:** menu → **🌐 Online** → **Create room** (you get a 5-character code, e.g. `N39A2`) or type a friend's code (4–5 characters) → **Join**. In the lobby everyone picks a vehicle; the host chooses **AI bots: Off / Fill to 4 / Fill to 6** and taps **Start race** (needs ≥ 2 players, or bots on). 2–6 human players. Shared 3-2-1-GO countdown on the host's clock, then a normal race (same track, crates, weapons, turbo pads). Results show the host's finish order; **Back to lobby** for a rematch in the same room, **Leave** to quit.
+
+**Transport** (`js/net.js`, libraries bundled locally in `vendor/`, lazy-loaded only when Online is opened, so single-player makes no network requests):
+1. **WebRTC P2P data channels via Trystero** (Nostr strategy: public Nostr relays carry the encrypted SDP handshake; public STUN `stun.l.google.com`, `stun.cloudflare.com`). No TURN (no free TURN without signup is available any more).
+2. **Automatic relay fallback per peer:** when no direct WebRTC path exists (strict/symmetric NAT, UDP blocked, corporate Wi-Fi), game messages are sent as **ephemeral Nostr events** (kind 20391, not stored) through 6 public relays, **end-to-end encrypted with AES-GCM** (key = SHA-256 of the room code; relays only see a hashed topic and ciphertext). Lobby discovery and 1 s heartbeats always use this channel, so joining works even when P2P fails. A peer silent for 7 s is treated as gone.
+- `?net=relay` forces relay-only, `?net=p2p` disables the relay data fallback (lobby still uses it).
+
+**Authority model** (`js/online.js`): the host (room creator) is authoritative for the lobby, start/countdown, RC-parts crates (pickups, respawn, weapon rolls), all weapons/projectiles/hazards, hits, sticky bombs and the finish order. Each player's *own* vehicle is simulated on their device (instant controls) and streamed at 15 Hz; other vehicles are shown with ~110 ms (P2P) / ~190 ms (relay) interpolation and ≤ 0.25 s extrapolation. Fire → host spawns the weapon at the shooter's reported position; hits on a remote player are sent to that player's device and applied there. Clients mirror crates/projectiles/hazards and FX events from 15 Hz host snapshots. AI bots (only if the host enables them) run on the host. Disconnects: client leaves → AI takes over the car if bots are on, otherwise the car is removed ("Left"); host leaves → everyone sees "Host left – race over" (no host migration).
+- Single-player code paths unchanged (all hooks are inert unless an online race is running): `sim.hitHook`, `sim.noHits`, `racer.puppet`, `weapons.remote`; one extra grid slot for the 6th racer.
+- Tests: `tests/online_test.py [url] [--shots]` – two headless Chrome contexts: create/join, vehicle picks, shared countdown, two-way position sync, smooth interpolation, crate pickup, client fires EMP pulse (projectile on both), hit forwarded, bomb state, identical finish order/times, bots on host, client disconnect → bot takes over, closed room → "not found", single-player afterwards, no console errors. Screenshots 32/33.
+- Limitations: see the v3.9 report (strict NATs → relay with ~100–200 ms extra latency; public relays are best-effort; host tab must stay in the foreground; client positions are trusted).
 
 ## v3.7 – Sketchfab CC-BY motorcycle, scooter & drone
 - **Motorcycle**: “Motorcycle” by animanyarty, **Scooter**: “Electric Scooter (Low-poly, game-ready)” by Delandi, **Drone**: “Quadcopter drone” by Annelida – all **CC BY 4.0** from Sketchfab (see CREDITS.md). Wheels (moto/scooter) auto-split onto spinning/steering pivots, drone props spin; meshopt + WebP ≤1K → `models/moto.glb`, `scooter.glb`, `drone.glb`. Physics/speeds unchanged. Screenshots 28/29 via `tests/graphics_shots37.py`.

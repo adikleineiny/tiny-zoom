@@ -12,6 +12,7 @@ import { OutputPass } from './addons/postprocessing/OutputPass.js';
 import { Weapons, WEAPONS, WEAPON_KEYS } from './weapons.js';
 import { FX } from './fx.js';
 import { preloadModels, setModelsEnabled, GLB } from './models.js';
+import { Online, makeCode, validCode, NET_COLORS } from './online.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -119,7 +120,7 @@ function startDemo() {
   snapCamera();
 }
 function toMenu() {
-  input.releaseAll(); $('rescueFx').classList.remove('on');
+  input.releaseAll(); $('online').classList.add('hidden'); $('btnRestart').classList.remove('hidden'); $('btnAgain').textContent = 'Again!'; $('btnMenu2').textContent = 'Menu'; $('posTot').textContent = '/4'; $('rescueFx').classList.remove('on');
   $('menu').classList.remove('hidden'); $('finish').classList.add('hidden'); $('pause').classList.add('hidden');
   $('hud').classList.add('hidden'); $('touchLayer').classList.add('hidden'); setCountdown(''); $('speedlines').classList.remove('on'); speedOn = false;
   startDemo();
@@ -146,23 +147,23 @@ for (const id of ['btnQuality', 'btnQuality2']) $(id)?.addEventListener('click',
 for (const id of ['btnControls', 'btnControls2']) $(id)?.addEventListener('click', e => { e.preventDefault(); input.cycleMode(); });
 input.setType(input.type);
 $('btnHelpClose').addEventListener('click', () => $('help').classList.add('hidden'));
-const pause = () => { input.releaseAll(); if (state === 'race' || state === 'countdown') { state = 'paused:' + state; $('pause').classList.remove('hidden'); } };
-const resume = () => { input.releaseAll(); if (state.startsWith('paused:')) { state = state.slice(7); $('pause').classList.add('hidden'); } };
+const pause = () => { input.releaseAll(); if (online.racing && (state === 'race' || state === 'countdown')) { $('pause').classList.remove('hidden'); return; } /* v3.9: an online race never freezes */ if (state === 'race' || state === 'countdown') { state = 'paused:' + state; $('pause').classList.remove('hidden'); } };
+const resume = () => { input.releaseAll(); if (online.racing) $('pause').classList.add('hidden'); if (state.startsWith('paused:')) { state = state.slice(7); $('pause').classList.add('hidden'); } };
 $('btnPause').addEventListener('click', pause); $('btnResume').addEventListener('click', resume);
-$('btnRestart').addEventListener('click', () => startRace(selected)); $('btnAgain').addEventListener('click', () => startRace(selected));
-$('btnMenu').addEventListener('click', toMenu); $('btnMenu2').addEventListener('click', toMenu);
+$('btnRestart').addEventListener('click', () => { if (!online.active) startRace(selected); }); $('btnAgain').addEventListener('click', () => online.active ? onlineToLobby() : startRace(selected));
+$('btnMenu').addEventListener('click', () => { online.close(); toMenu(); }); $('btnMenu2').addEventListener('click', () => { online.close(); toMenu(); });
 $('btnReset').addEventListener('click', () => resetPlayer());
 addEventListener('keydown', e => {
   if (e.code === 'Escape' || e.code === 'KeyP') state.startsWith('paused') ? resume() : pause();
   if (e.code === 'KeyR') resetPlayer();
-  if (e.code === 'Enter' && state === 'menu' && $('help').classList.contains('hidden')) startRace(selected);
+  if (e.code === 'Enter' && state === 'menu' && $('help').classList.contains('hidden') && $('online').classList.contains('hidden')) startRace(selected);
 });
 document.addEventListener('visibilitychange', () => { input.releaseAll(); if (document.hidden) pause(); });
 addEventListener('pagehide', () => { input.releaseAll(); pause(); });
 addEventListener('blur', () => input.releaseAll());
 
 // manual reset (↺ / R) = the same Lakitu-style rescue as the automatic one
-function resetPlayer() { if (player && state === 'race') { if (!sim.rescue(player, 'manual') && player.rescueT <= 0) sim.respawn(player); } }
+function resetPlayer() { if (player && state === 'race' && !player.puppet) { if (!sim.rescue(player, 'manual') && player.rescueT <= 0) sim.respawn(player); } }
 
 // ---------- camera ----------
 function snapCamera() { const r = followed(); if (!r) return; camHeading = r.heading; updateCamera(1, true); }
@@ -298,15 +299,70 @@ function showFinish() {
   const st = sim.standings(); const tb = $('results').querySelector('tbody'); tb.innerHTML = '';
   st.forEach((r, k) => {
     const tr = document.createElement('tr'); if (r.isPlayer) tr.className = 'me';
-    tr.innerHTML = `<td>${k + 1}</td><td>${r.name}</td><td>${typeName(r.model)}</td><td class="mono">${r.finished ? fmt(r.finishTime) : 'Racing…'}</td><td class="mono">${fmt(r.best)}</td><td>${r.lapsDone}/${CONFIG.laps}</td><td>${r.landed || 0}</td>`;
+    tr.innerHTML = `<td>${k + 1}</td><td>${r.isPlayer && online.active ? 'Me (' + (r.netName || '') + ')' : r.name}</td><td>${typeName(r.model)}</td><td class="mono">${r.finished ? fmt(r.finishTime) : r.left ? 'Left' : 'Racing…'}</td><td class="mono">${fmt(r.best)}</td><td>${r.lapsDone}/${CONFIG.laps}</td><td>${r.landed || 0}</td>`;
     tb.appendChild(tr);
   });
   const best = t => { const v = sim.racers.filter(r => r.type === t && isFinite(r.best)).map(r => r.best); return v.length ? Math.min(...v) : Infinity; };
   const bc = best('car'), bd = best('drone');
   $('balance').textContent = `Balance check – best lap: ground ${fmt(bc)} · flyers ${fmt(bd)}` + (isFinite(bc) && isFinite(bd) ? ` (delta ${(bd - bc).toFixed(2)} s)` : '');
-  const pos = st.indexOf(player) + 1; $('finTitle').textContent = pos === 1 ? '🏆 You won!' : `Finished in place ${pos}`;
+  const pos = st.indexOf(player) + 1; $('finTitle').textContent = !player.finished ? (online.active ? '🏁 Race over' : 'Finish!') : pos === 1 ? '🏆 You won!' : `Finished in place ${pos}`;
   $('finish').classList.remove('hidden');
 }
+
+// ---------- v3.9 online multiplayer (room codes, no accounts) ----------
+const online = new Online({
+  sim, weapons, track, input, toast: m => toast(m),
+  get player() { return player; },
+  get finishedView() { return !$('finish').classList.contains('hidden'); },
+  clearRacers,
+  beginOnlineRace(me, cdT) {
+    input.releaseAll(); player = me; selected = me.model; spawnMeshes(); input.setType(player.type);
+    state = 'countdown'; countdownT = cdT; acc = 0; lastSec = player.section; finishShownT = -1; slotShown = ''; cdShown = 'x';
+    for (const id of ['menu', 'finish', 'pause', 'online']) $(id).classList.add('hidden');
+    $('hud').classList.remove('hidden'); $('touchLayer').classList.remove('hidden'); $('btnRestart').classList.add('hidden');
+    $('btnAgain').textContent = 'Back to lobby'; $('btnMenu2').textContent = 'Leave'; $('posTot').textContent = '/' + sim.racers.length;
+    snapCamera();
+  },
+  relabel(r) { const k = sim.racers.indexOf(r), m = meshes[k]; if (!m) return; scene.remove(m.root); scene.remove(m.shadow); const n = createVehicleMesh(r.type, r.color, r.name, r.model); scene.add(n.root); scene.add(n.shadow); meshes[k] = n; },
+  hideRacer(r) { const m = meshes[sim.racers.indexOf(r)]; if (m) { m.root.visible = false; m.shadow.visible = false; } r.x = r.z = -5000; r.y = -500; r.progress = -1e6; r.puppet = true; r.ai = null; r.weapon = null; r.bomb = null; },
+  hostLost() { if (state === 'race' || state === 'countdown' || state === 'finished') { toast('📡 Host left – race over'); showFinish(); } else onlineMsg('📡 The host left the room.'); },
+  joinFailed(why) { onlineMsg(why); },
+  ui: () => onlineUI(),
+});
+function onlineMsg(m) { $('onErr').textContent = m; onlineUI(); }
+function openOnline() { $('menu').classList.add('hidden'); $('online').classList.remove('hidden'); $('onErr').textContent = ''; onlineUI(); }
+function onlineToLobby() { online.backToLobby(); input.releaseAll(); for (const id of ['finish', 'pause', 'hud', 'touchLayer']) $(id).classList.add('hidden'); setCountdown(''); $('speedlines').classList.remove('on'); speedOn = false; startDemo(); $('online').classList.remove('hidden'); onlineUI(); }
+$('onVeh').innerHTML = MODELS.map(m => `<button data-type="${m}" title="${CONFIG.models[m].label}">${CONFIG.models[m].icon}</button>`).join('');
+$('onVeh').querySelectorAll('button').forEach(b => b.addEventListener('click', () => online.setModel(b.dataset.type)));
+$('btnOnline').addEventListener('click', openOnline);
+$('btnOnBack').addEventListener('click', () => { online.close(true); $('online').classList.add('hidden'); $('menu').classList.remove('hidden'); });
+$('btnCreate').addEventListener('click', () => { $('onErr').textContent = ''; online.open('host', makeCode(5), selected).catch(e => onlineMsg('Could not go online: ' + e.message)); onlineUI(); });
+const doJoin = () => { const c = $('joinCode').value.trim().toUpperCase(); if (!validCode(c)) { onlineMsg('Enter the 4–5 character room code (letters and digits).'); return; } $('onErr').textContent = ''; online.open('client', c, selected).catch(e => onlineMsg('Could not go online: ' + e.message)); $('joiningCode').textContent = c; onlineUI(); };
+$('btnJoin').addEventListener('click', doJoin);
+$('joinCode').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') doJoin(); });
+$('joinCode').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+$('btnJoinCancel').addEventListener('click', () => { online.close(); });
+$('btnLeave').addEventListener('click', () => { online.close(); });
+$('botSel').addEventListener('change', e => online.setBots(e.target.value));
+$('btnOnStart').addEventListener('click', () => { goFullscreen(); online.hostStart(); });
+function onlineUI() {
+  const o = online, st = o.state;
+  if (o.racing) return;
+  // the host went back to the lobby while I'm still on the race / results screen
+  if (st === 'lobby' && state !== 'menu' && $('finish').classList.contains('hidden') && (state === 'race' || state === 'countdown' || state === 'finished')) { showFinish(); return; }
+  $('onHome').classList.toggle('hidden', st !== 'off'); $('onJoining').classList.toggle('hidden', st !== 'joining'); $('onLobby').classList.toggle('hidden', st !== 'lobby');
+  if (st !== 'lobby') return;
+  $('roomCode').textContent = o.code;
+  const meId = o.net?.id, n = o.players.length, want = o.bots === 'off' ? 0 : Math.max(0, +o.bots - n);
+  $('lobbyList').innerHTML = [...o.players].sort((a, b) => a.slot - b.slot).map(p => `<li class="${p.id === meId ? 'me' : ''}"><span class="dot" style="background:#${NET_COLORS[p.slot].toString(16).padStart(6, '0')}"></span><span class="nm">${p.name}${p.id === meId ? ' (you)' : ''}${p.slot === 0 ? ' 👑 host' : ''}${p.waiting ? ' ⏳' : ''}</span><span>${CONFIG.models[p.model]?.icon || ''} ${CONFIG.models[p.model]?.label || ''}</span><span class="lk">${p.id === meId ? '' : o.linkLabel(p.id)}</span></li>`).join('')
+    + Array.from({ length: want }, () => '<li class="bot"><span class="dot" style="background:#888"></span><span class="nm">🤖 AI bot</span><span>random</span></li>').join('');
+  $('onVeh').querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.type === (o.me()?.model || o.model)));
+  $('hostOpts').classList.toggle('hidden', !o.isHost); $('botSel').value = o.bots;
+  $('btnOnStart').classList.toggle('hidden', !o.isHost); $('btnOnStart').disabled = !o.canStart();
+  $('lobbyMsg').textContent = o.isHost ? (o.canStart() ? `${n} player${n > 1 ? 's' : ''}${want ? ' + ' + want + ' bot' + (want > 1 ? 's' : '') : ''} – press Start when everyone is in.` : 'Waiting for players… (or turn on AI bots)') : 'Waiting for the host to start…';
+}
+setInterval(() => { if (online.state === 'lobby' && !$('online').classList.contains('hidden')) onlineUI(); }, 1000); // refresh link status
+addEventListener('pagehide', () => online.close(true));
 
 // ---------- main loop ----------
 // v3.5: big bold pop-in countdown (each number re-triggers the CSS animation)
@@ -330,10 +386,13 @@ function frame(now) {
       if (countdownT <= 0.2 && !sim.running) { sim.running = true; state = 'race'; }
     }
     if (state === 'race' && countdownT < -0.8) setCountdown(''); else if (state === 'race') countdownT -= dt;
+    if (online.racing && state === 'countdown') countdownT = Math.min(countdownT, online.countdownT()); // v3.9 shared countdown (host clock)
     if (player && !player.autopilot && !player.finished) input.read(player.input, { cam: camHeading, heading: player.heading }); else input.read({});
-    acc += dt * timeScale; let n = 0;
+    online.preStep(dt);
+    acc += (online.racing ? Math.min(0.25, rawMs / 1000) : dt) * timeScale; let n = 0; // v3.9: online race clock follows wall time even on slow frames
     while (acc >= H && n < 40) { sim.step(H); acc -= H; n++; }
     if (acc > H) acc = 0;
+    online.coast(dt); online.postStep(dt);
     if (player && player.finished && state === 'race') { state = 'finished'; finishShownT = 1.5; toast('🏁 Finish!'); }
     if (state === 'finished') { finishShownT -= dt; if (finishShownT <= 0) { showFinish(); finishShownT = 0.5; } }
   }
@@ -358,7 +417,7 @@ function frame(now) {
 // ---------- test / debug hooks ----------
 window.__rc = {
   sim, track, CONFIG, scene, get camera() { return camera; }, get calls() { return renderer.info.render.calls; }, get state() { return state; }, get player() { return player; },
-  startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
+  get online() { return online; }, startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
   setCam(pos, look) { camOverride = pos ? [pos, look] : null; },
   get meshes() { return meshes; }, input, world, GLB, createVehicleMesh, updateVehicleMesh, quality, setQuality(l) { quality.auto = false; setQualityLevel(l); }, QUALITY, frameStats() { const r = { avgMs: quality.frames ? quality.sum / quality.frames : 0, frames: quality.frames, level: quality.level, dpr: renderer.getPixelRatio(), shadows: renderer.shadowMap.enabled, calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; quality.frames = 0; quality.sum = 0; return r; }, rescue: (r = player, why) => sim.rescue(r, why),
   give(w, r = player) { weapons.give(r, w); }, fire(r = player) { return weapons.use(r); },

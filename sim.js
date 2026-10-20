@@ -98,6 +98,7 @@ export class Sim {
   // Apply a weapon / ram hit. o: { kx, kz, up, spin, tumble, stun, slow, by, kind }
   hit(r, o) {
     const W = CONFIG.weapons.hit;
+    if (this.hitHook && this.hitHook(r, o) === false) return false; // v3.9 online: client ignores local hits / host forwards hits on remote players
     if (r.immuneT > 0 || (r.finished && !r.isPlayer && false)) return false;
     const m = 1 / (r.V.mass || 1), slow = o.slow ?? 0.6;
     r.vx = r.vx * slow + (o.kx || 0) * m; r.vz = r.vz * slow + (o.kz || 0) * m;
@@ -200,7 +201,7 @@ export class Sim {
   stuckLevel(r) { return r.rescueT > 0 ? 0 : (r.tryStillT || 0) / CONFIG.rescue.stuckTime; }
   add(r) { r.id = this.racers.length; this.racers.push(r); return r; }
   placeGrid(order) {
-    const T = this.T; const slots = [[-22, -20], [-22, 20], [-52, -20], [-52, 20], [-82, 0]];
+    const T = this.T; const slots = [[-22, -20], [-22, 20], [-52, -20], [-52, 20], [-82, 0], [-112, 0]]; // 6th slot: v3.9 online
     order.forEach((r, k) => {
       const [s, lat] = slots[k % slots.length]; const i = ((Math.round(s / T.ds)) % T.N + T.N) % T.N;
       r.x = T.px[i] + T.nx[i] * lat; r.z = T.pz[i] + T.nz[i] * lat; r.y = 0; r.heading = Math.atan2(T.tz[i], T.tx[i]);
@@ -211,6 +212,7 @@ export class Sim {
     const T = this.T;
     if (this.running) this.t += dt;
     for (const r of this.racers) {
+      if (r.puppet) continue; // v3.9 online: moved by the network (interpolated), not simulated here
       if (r.ai && (!r.isPlayer || r.autopilot || r.finished)) r.ai.update(r, dt, this.running);
       if (!this.running) { r.input.thr = r.input.steer = r.input.alt = r.input.pitch = 0; r.input.jump = false; }
       if (r.respawnReq) { r.respawnReq = false; if (this.running && CONFIG.rescue?.enabled) this.rescue(r, 'ai'); else this.respawn(r); }
@@ -231,7 +233,7 @@ export class Sim {
         A.x -= nx * pen * ia / (ia + ib); A.z -= nz * pen * ia / (ia + ib); B.x += nx * pen * ib / (ia + ib); B.z += nz * pen * ib / (ia + ib);
         const rel = (B.vx - A.vx) * nx + (B.vz - A.vz) * nz;
         if (rel < 0) { const j = -rel * 1.5 / (ia + ib); A.vx -= nx * j * ia; A.vz -= nz * j * ia; B.vx += nx * j * ib; B.vz += nz * j * ib; }
-        for (const [P, Q, sg] of [[A, B, 1], [B, A, -1]]) {
+        if (!this.noHits) for (const [P, Q, sg] of [[A, B, 1], [B, A, -1]]) {
           if (P.turboT > 0 && Q.immuneT <= 0) {
             // knock aside: push along contact normal + sideways
             const kx = nx * sg, kz = nz * sg, side = (kx * Math.sin(P.heading) - kz * Math.cos(P.heading)) >= 0 ? 1 : -1;
@@ -401,6 +403,7 @@ export class Sim {
     }
   }
   post(r, dt) {
+    if (r.puppet) return;
     const T = this.T, V = r.V, TP = CONFIG.turboPads;
     const pr = T.project(r.x, r.z, r.idx, this._pr);
     // lateral limits (barriers / drone shortcut margin)

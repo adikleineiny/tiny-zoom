@@ -133,3 +133,22 @@ button.link{background:none;border:none;color:#bde0fe;text-decoration:underline;
 #hudBat .gRead{position:relative;line-height:1}
 #hudBat #spd{font-size:20px;font-weight:800}
 #hudBat small{display:block;font-size:9px;opacity:.75}
+
+/* v3.9 online lobby */
+#online{z-index:12}
+#online .dialog{max-width:min(94vw,560px)}
+.joinRow{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+.joinRow input{flex:1;min-width:0;font:inherit;font-size:24px;font-weight:900;letter-spacing:6px;text-align:center;text-transform:uppercase;border-radius:12px;border:2px solid #ffd23f;background:#0d1b2a;color:#fff;padding:6px;margin-top:8px}
+.joinRow button.big{width:auto;flex:0 0 38%}
+.err{color:#ff8c8c;min-height:1em;margin-top:4px}
+.codeBox{font-size:15px;margin:2px 0 6px}.codeBox b{font-size:32px;letter-spacing:6px;color:#ffd23f;margin:0 6px;font-family:ui-monospace,monospace}
+#lobbyList{list-style:none;padding:0;margin:4px 0 8px;text-align:left}
+#lobbyList li{display:flex;align-items:center;gap:8px;padding:4px 8px;margin:3px 0;background:rgba(255,255,255,.08);border-radius:10px;font-size:14px}
+#lobbyList .dot{width:14px;height:14px;border-radius:50%;flex:0 0 14px;border:2px solid #fff}
+#lobbyList .nm{font-weight:800;flex:1}#lobbyList .lk{font-size:11px;opacity:.75}
+#lobbyList li.me{outline:2px solid #ffd23f}#lobbyList li.bot{opacity:.7}
+.onVeh{display:flex;gap:6px;justify-content:center;margin:4px 0}
+.onVeh button{font:inherit;font-size:24px;background:rgba(0,0,0,.35);border:2px solid transparent;border-radius:10px;color:#fff;padding:2px 8px;cursor:pointer}
+.onVeh button.sel{border-color:#ffd23f;background:rgba(255,210,63,.2)}
+#hostOpts select{font:inherit;border-radius:8px;padding:2px 4px}
+#btnOnStart:disabled{opacity:.45;filter:grayscale(.6)}
