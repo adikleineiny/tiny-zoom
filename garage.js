@@ -103,7 +103,7 @@ export class Garage {
     const m = this.car = createVehicleMesh(type, color, null, model);
     m.root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     if (m.shadow) m.shadow.visible = false;
-    m.root.position.set(0, type === 'drone' ? 5 : 0, 0); this.stand.add(m.root); this.type = type;
+    this.hov = model === 'heli' ? 1.2 : 5; m.root.position.set(0, type === 'drone' ? this.hov : 0, 0); this.stand.add(m.root); this.type = type;
   }
   frame(w, h, thumb) {
     const cam = this.camera; cam.aspect = w / h;
@@ -113,7 +113,7 @@ export class Garage {
       cam.setViewOffset(w, h, w * 0.14, h * 0.03, w, h); }
     cam.updateProjectionMatrix();
   }
-  update(dt) { this.t += dt; if (!this.reduced) this.angle += dt * 0.22; this.stand.rotation.y = this.angle; if (this.type === 'drone' && this.car) this.car.root.position.y = 5 + Math.sin(this.t * 2) * 0.6;
+  update(dt) { this.t += dt; if (!this.reduced) this.angle += dt * 0.22; this.stand.rotation.y = this.angle; if (this.type === 'drone' && this.car) this.car.root.position.y = (this.hov ?? 5) + Math.sin(this.t * 2) * 0.6;
     if (this.car) for (const r of this.car.rotors || []) r.rotation.y += dt * 4; }
   render(w, h) { this.frame(w, h); this.renderer.render(this.scene, this.camera); }
   // small vehicle portrait for the carousel (rendered once into a data URL)

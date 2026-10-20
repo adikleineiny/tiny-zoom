@@ -120,15 +120,19 @@ function buildBike(model, color, parts) {
 function buildHeli(color, parts) {
   const paint = plastic(color, 100), dark = plastic(0x22262c, 30), tilt = parts.tilt;
   const fus = new THREE.Mesh(new THREE.SphereGeometry(3.4, 18, 12), paint); fus.scale.set(1.35, 0.95, 0.85); fus.position.set(1, 5, 0); tilt.add(fus);
-  const can = new THREE.Mesh(new THREE.SphereGeometry(2.6, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), glassM()); can.rotation.z = -1.0; can.position.set(2.8, 5.6, 0); can.scale.set(1, 1, 0.92); tilt.add(can);
+  const can = new THREE.Mesh(new THREE.SphereGeometry(3.1, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.6), glassM()); can.rotation.z = -1.0; can.position.set(2.9, 5.5, 0); can.scale.set(1.05, 1, 0.95); tilt.add(can);
   const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 1.1, 11, 8), paint); boom.rotation.z = Math.PI / 2; boom.position.set(-7.6, 5.7, 0); tilt.add(boom);
   bx(1.8, 2.6, 0.3, paint, -12.6, 7.0, 0, tilt).rotation.z = 0.35; // tail fin
   bx(1.6, 0.25, 3.0, paint, -11.8, 5.8, 0, tilt);
-  const skid = plastic(0x2b2d42, 40);
-  for (const z of [-2.4, 2.4]) { tube([-3.0, 0.6, z], [4.4, 0.6, z], 0.32, skid, tilt); tube([4.4, 0.6, z], [5.2, 1.2, z], 0.32, skid, tilt); tube([-1.6, 0.6, z], [-0.9, 2.9, z * 0.6], 0.25, skid, tilt); tube([2.4, 0.6, z], [2.0, 2.9, z * 0.6], 0.25, skid, tilt); }
+  bx(5.2, 0.5, 0.12, plastic(0xffc61a, 80), 0.2, 4.4, 2.92, tilt); bx(5.2, 0.5, 0.12, plastic(0xffc61a, 80), 0.2, 4.4, -2.92, tilt); // side stripes
+  const tg = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.18, 6, 20), dark); tg.position.set(-12.8, 7.4, 0.6); tilt.add(tg); // tail-rotor guard
+  const skid = plastic(0xffc61a, 80); // chunky glossy toy skids
+  for (const z of [-2.6, 2.6]) { tube([-3.4, 0.7, z], [4.4, 0.7, z], 0.55, skid, tilt); tube([4.4, 0.7, z], [5.4, 1.5, z], 0.55, skid, tilt); tube([-1.6, 0.7, z], [-0.9, 2.9, z * 0.6], 0.4, skid, tilt); tube([2.4, 0.7, z], [2.0, 2.9, z * 0.6], 0.4, skid, tilt); }
+  for (const z of [-3.0, 3.0]) { const st = new THREE.Mesh(new THREE.CircleGeometry(0.9, 5), basic(0xffc61a)); st.position.set(-1.6, 5.4, z); if (z < 0) st.rotation.y = Math.PI; tilt.add(st); } // star decals
   tube([1, 8.0, 0], [1, 9.4, 0], 0.4, dark, tilt);
   const rot = new THREE.Group(); rot.position.set(1, 9.6, 0); tilt.add(rot);
-  const bladeM = plastic(0x333333, 50);
+  const bladeM = plastic(0x2b2d42, 70);
+  { const tip = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 8), plastic(0xffc61a, 90)); tip.position.set(1, 10.2, 0); tilt.add(tip); } // rotor cap
   for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(17, 0.15, 1.1), bladeM); b.rotation.y = k * Math.PI / 2 * 2; b.position.x = 0; rot.add(b); }
   rot.add(new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.6, 8), dark));
   const disc = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 8.5, 0.05, 28), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false })); rot.add(disc);
@@ -138,6 +142,7 @@ function buildHeli(color, parts) {
   parts.tailRotor = tr;
   bx(0.4, 0.4, 0.4, basic(0xff2244), -12.9, 8.6, 0, tilt); bx(0.4, 0.4, 0.4, basic(0x00ff88), 4.9, 4.6, 0, tilt);
   const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 5, 4), dark); ant.position.set(-2, 8.4, 1.6); tilt.add(ant);
+  const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), basic(0xff2244)); antTip.position.set(-2, 11, 1.6); tilt.add(antTip);
 }
 
 function buildCarBody(model, color, body) {
@@ -209,7 +214,7 @@ export function createVehicleMesh(type, color, name, model) {
       parts.wheels.push(w); parts.pivots.push(piv); if (x > 0) parts.frontPivots.push(piv);
     }
     if (G.two && !parts.glb) { buildBike(model, color, parts); parts.frontPivots[0].rotation.z = 0; }
-  } else if (model === 'heli' && glbFor('heli')) {
+  } else if (model === 'heli' && false) { // v4.0.1: GLB (coaxial Ingenuity) read as a drone; use the procedural classic helicopter
     buildGlbHeli(parts, color);
     { const l1 = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), basic(0x00ff88)); l1.position.set(3.2, 2.2, 0); tilt.add(l1); const l2 = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), basic(0xff2244)); l2.position.set(-3.2, 2.2, 0); tilt.add(l2); }
   } else if (model === 'heli') {

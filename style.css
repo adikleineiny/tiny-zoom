@@ -268,8 +268,10 @@ button.link{background:none;border:none;color:#bde0fe;text-decoration:underline;
 #glErr{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#2b2420;color:#fbf3e4;font-family:"Fredoka",Arial,sans-serif;text-align:center;padding:24px}
 #glErr h2{font:32px "Lilita One",Arial Black,sans-serif;color:#ffd166;margin:0 0 8px}#glErr button{margin-top:14px;font:20px "Lilita One",Arial Black,sans-serif;padding:10px 26px;border-radius:999px;border:3px solid #fbf3e4;background:#e5483d;color:#fff}
 /* v4.0.1 phone-landscape title fixes (short heights, notch safe areas) */
+#menu .title{height:100dvh;bottom:auto}
+@supports not (height:100dvh){#menu .title{height:100%}}
 @media (max-height:500px) and (min-aspect-ratio:1/1){
-  .title{--sl:max(16px,env(safe-area-inset-left));--sr:max(16px,env(safe-area-inset-right));--sb:max(10px,env(safe-area-inset-bottom));--st:max(10px,env(safe-area-inset-top))}
+  .title{--sl:max(16px,env(safe-area-inset-left));--sr:max(16px,env(safe-area-inset-right));--sb:calc(max(10px,env(safe-area-inset-bottom)) + clamp(6px,5dvh,24px));--st:max(10px,env(safe-area-inset-top))}
   .logo{top:calc(var(--st) + 6px);left:var(--sl)}
   .logoWord{font-size:clamp(26px,4.6vw,40px)}.tagline{font-size:clamp(11px,1.4vw,13px)}
   .topIcons{top:var(--st);right:var(--sr);gap:8px}
