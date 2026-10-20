@@ -78,7 +78,7 @@ export class Weapons {
       case 'rocket': {
         let tgt = null, best = 1e9;
         for (const o of this.others(r)) { const dp = o.progress - r.progress; if (dp > 2 && dp < C.rocket.range && dp < best) { best = dp; tgt = o; } }
-        if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); if (f.cos > 0.3 && f.d < C.rocket.range && f.d < best) { best = f.d; tgt = o; } }
+        if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); if (f.cos > (C.rocket.lockCos ?? 0.3) && f.d < C.rocket.range && f.d < best) { best = f.d; tgt = o; } }
         spawn('rocket', { vx: c * C.rocket.speed, vy: 0, vz: s * C.rocket.speed, life: C.rocket.life, target: tgt, y: r.y + 6 }); break;
       }
       case 'bomb': { // v3.4: lobbed BACKWARDS – lands behind the thrower, on whoever is following
@@ -97,7 +97,7 @@ export class Weapons {
       case 'pulse': { // v3.8: homing EMP orb – targets the nearest racer ahead in 3D (ground or air), bursts in a sphere
         let tgt = null, best = 1e9;
         for (const o of this.others(r)) { const dp = o.progress - r.progress; if (dp > 2 && dp < C.pulse.range && dp < best) { best = dp; tgt = o; } }
-        if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); const d = Math.hypot(f.d, o.y - r.y); if (f.cos > 0.3 && d < C.pulse.range && d < best) { best = d; tgt = o; } }
+        if (!tgt) for (const o of this.others(r)) { const f = this.front(r, o); const d = Math.hypot(f.d, o.y - r.y); if (f.cos > (C.pulse.lockCos ?? 0.3) && d < C.pulse.range && d < best) { best = d; tgt = o; } }
         spawn('pulse', { vx: c * C.pulse.speed, vy: 0, vz: s * C.pulse.speed, life: C.pulse.life, target: tgt, y: r.y + 5 }); break;
       }
       case 'zap': { // v3.9: every opponent anywhere on the track (ghosts are immune via sim.hit); local spark on each victim
@@ -194,7 +194,7 @@ export class Weapons {
     } else p.vy = (6 + this.T.groundAt(p.x, p.z) - p.y) * 3;
     const ox = p.x, oz = p.z; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; { const gr = this.T.groundAt(p.x, p.z) + 2; if (p.y < gr) p.y = gr; }
     if (this.T.insideSolid(p.x, p.y, p.z, 0)) { p.x = ox; p.z = oz; S.emit({ type: 'boom', x: p.x, y: p.y, z: p.z, size: 0.7 }); return true; }
-    const o = this.hitRacer(p, 3);
+    const o = this.hitRacer(p, Rk.hitR ?? 3);
     if (o) {
       const v = Math.hypot(p.vx, p.vz) || 1;
       S.hit(o, { kx: p.vx / v * Rk.knock, kz: p.vz / v * Rk.knock, up: Rk.up, tumble: Rk.tumble, slow: Rk.slow, by: p.owner, kind: 'rocket' });
@@ -222,7 +222,7 @@ export class Weapons {
   bombTick(p, dt) {
     const B = this.C.bomb, S = this.sim;
     this.move(p, dt, CONFIG.gravity);
-    const o = this.hitRacer(p, 3);
+    const o = this.hitRacer(p, B.hitR ?? 3);
     if (o && !o.bomb) { o.bomb = { t: B.fuse, passCD: B.passCooldown, owner: p.owner }; S.emit({ type: 'bombStick', r: o }); return true; }
     const gm = this.T.groundAt(p.x, p.z); if (p.y <= gm + 2 && p.vy < 0) { this.haz.push({ id: uid++, kind: 'bomb', x: p.x, z: p.z, y: gm, life: B.mineLife, age: 0, owner: p.owner, R: 4 }); return true; }
     return false;

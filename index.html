@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Tiny Zoom v3.9 — Toy Racing</title>
+<title>Tiny Zoom v4.0 — Toy Racing</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -20,9 +20,9 @@
 <div id="touchLayer" class="hidden"></div>
 
 <div id="hud" class="hidden">
-  <div id="hudPos" class="panel"><div class="lbl">Place</div><div><span id="posNum">4</span><small id="posTot">/4</small></div></div>
-  <div id="hudLap" class="panel"><div id="lapNum">Lap 1/3</div><div id="lapTime" class="mono">0:00.00</div></div>
-  <div id="hudTimes" class="panel"><div>Total <b id="totTime" class="mono">0:00.0</b></div><div>Best <b id="bestTime" class="mono">—</b></div></div>
+  <div id="hudPos" class="panel"><div><span id="posNum">4</span><small id="posTot">/4</small></div><div class="lbl">POSITION</div></div>
+  <div id="hudCenter"><div id="hudName">RC Race Car</div><div id="lapTime" class="mono">0:00.00</div><div id="hudTimes"><span>Total <b id="totTime" class="mono">0:00.0</b></span><span>Best <b id="bestTime" class="mono">—</b></span></div></div>
+  <div id="hudLap" class="panel"><div id="lapNum">Lap 1/3</div></div>
   <canvas id="minimap" width="150" height="132"></canvas>
   <div id="hudBat" class="panel"><svg class="gauge" viewBox="0 0 100 60" aria-hidden="true"><path d="M10 52 A40 40 0 0 1 90 52" class="gTrack" pathLength="100"/><path id="gaugeArc" d="M10 52 A40 40 0 0 1 90 52" class="gArc" pathLength="100"/></svg><div class="gRead"><span id="spd" class="mono">0</span><small>cm/s</small></div><span id="alt" class="mono"></span></div>
   <div id="toast"></div>
@@ -38,39 +38,68 @@
 <div id="countdown"></div>
 
 <div id="menu" class="overlay">
-  <div class="menuBox">
-    <div class="menuHead">
-      <h1>Tiny Zoom <span class="tag">v3.9</span></h1>
-      <div class="sub">RC toy racing · tiny vehicles, giant world · jumps &amp; secret weapons</div>
+  <div class="title" id="titleUI">
+    <div class="logo" aria-label="Tiny Zoom">
+      <div class="logoWord"><span class="lw1">TINY</span><svg class="flag" viewBox="0 0 48 36" aria-hidden="true"><path d="M3 3 L3 35" stroke="#1d1d1d" stroke-width="3"/><path d="M4 4 Q16 0 26 5 T46 6 L46 24 Q36 26 26 21 T4 22Z" fill="#fff" stroke="#1d1d1d" stroke-width="2.5"/><g fill="#1d1d1d"><rect x="8" y="5" width="7" height="6"/><rect x="22" y="6" width="7" height="6"/><rect x="36" y="7" width="7" height="6"/><rect x="15" y="11" width="7" height="6"/><rect x="29" y="12" width="7" height="6"/><rect x="8" y="16" width="7" height="5"/><rect x="22" y="17" width="7" height="5"/><rect x="36" y="18" width="7" height="5"/></g></svg></div>
+      <div class="logoWord lw2">ZOOM</div>
+      <div class="tagline">Small cars. Big adventures. <span class="tag">v4.0</span></div>
     </div>
-    <div class="menuBody">
-      <div class="trackCard">
-        <div class="cardTitle">🏁 Track: <b>From the Kitchen to the Garden</b> <span class="tag">XL</span></div>
-        <ol class="sections">
-          <li><b>Kitchen &amp; Table</b> – fast tiles, then between chair legs under a low table</li>
-          <li><b>Pet Door → Lawn</b> – squeeze through the flap, kicker ramp on the grass</li>
-          <li><b>Sandbox Tunnel</b> – a drain pipe through the sand hill (no flying over!)</li>
-          <li><b>Rolling Hills</b> – bumps that throw you into the air</li>
-          <li><b>Toy Town</b> – street between houses, garage-roof shortcut over the mud, BIG JUMP over the puddle</li>
-          <li><b>Gnome Garden</b> – through the doghouse and back inside</li>
-        </ol>
-        <div class="small">3 laps · 3 rivals · pass every checkpoint gate (you can't fly over them)</div>
-        <div class="small wtip">🎁 Grab glowing <b>?</b> boxes for a random secret weapon: 💣 Sticky Bomb · 💨 Nitro Turbo · 🔥 Fire Trail · ⚡ Electrify · 🚀 Rocket · 🔴 Ball · 💥 Shockwave · 🌀 EMP Pulse · 👻 Ghost</div>
-      </div>
-      <div class="pick">
-        <div class="cardTitle">Pick a vehicle:</div>
-        <div class="vehicles" id="vehList"></div>
-        <button id="btnStart" class="big">Let's race!</button>
-        <button id="btnOnline" class="big alt">🌐 Online</button>
-        <button class="link btnQuality" id="btnQuality">⚙️ Graphics</button>
-        <button class="link btnControls" id="btnControls">🎮 Controls: One stick</button>
-        <button id="btnHelp" class="link">How do I control?</button>
-        <button id="btnCredits" class="link">📜 Credits</button>
-      </div>
+    <div class="topIcons">
+      <button class="iconBtn" id="btnSound" aria-label="Sound on/off" title="Sound"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path class="mute" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button class="iconBtn" id="btnHelp" aria-label="How to play" title="How to play"><svg viewBox="0 0 24 24"><path d="M9 9a3 3 0 1 1 4 2.8c-.8.4-1 1-1 1.7V14" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="12" cy="18" r="1.5" fill="currentColor"/></svg></button>
+      <button class="iconBtn" id="btnSettings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 5-1.9-.3a6.8 6.8 0 0 1-.6 1.5l1.1 1.6-1.6 1.6-1.6-1.1c-.5.3-1 .5-1.5.6l-.3 1.9h-2.2l-.3-1.9a6.8 6.8 0 0 1-1.5-.6l-1.6 1.1-1.6-1.6 1.1-1.6a6.8 6.8 0 0 1-.6-1.5l-1.9-.3v-2.2l1.9-.3c.1-.5.3-1 .6-1.5L4.6 7.7l1.6-1.6 1.6 1.1c.5-.3 1-.5 1.5-.6l.3-1.9h2.2l.3 1.9c.5.1 1 .3 1.5.6l1.6-1.1 1.6 1.6-1.1 1.6c.3.5.5 1 .6 1.5l1.9.3z" fill="currentColor"/></svg></button>
     </div>
+    <section class="garageCard" aria-label="The garage">
+      <div class="gTab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6.5a5 5 0 0 1-6.6 4.7l-7.6 7.6a2 2 0 0 1-2.8-2.8l7.6-7.6A5 5 0 0 1 17.5 3l-3 3 .6 2.9 2.9.6z" fill="currentColor"/></svg>THE GARAGE</div>
+      <div class="gName"><h2 id="carName">RC Race Car</h2><button class="iconBtn sm" id="btnCarInfo" aria-label="About this vehicle"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg></button></div>
+      <div class="gNote hidden" id="carNote"></div>
+      <div class="gStat"><svg viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 16l4-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>SPEED</span><i class="bar coral" id="stSpeed"><b></b></i></div>
+      <div class="gStat"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M4 12h5.5M14.5 12H20M12 14.5V20" stroke="currentColor" stroke-width="2"/></svg><span>HANDLING</span><i class="bar teal" id="stHandling"><b></b></i></div>
+      <div class="gStat"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2.4" fill="none"/><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 3.5v5M12 15.5v5M3.5 12h5M15.5 12h5" stroke="currentColor" stroke-width="1.6"/></svg><span>GRIP</span><i class="bar teal" id="stGrip"><b></b></i></div>
+      <div class="gFoot" id="carFoot">Same top speed for every vehicle – fair racing.</div>
+    </section>
+    <button class="trackCard2" id="btnTrack" aria-label="Track: Kitchen to Garden">
+      <img id="trackImg" alt="" width="320" height="140">
+      <span class="tName"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17c-2-2 0-6 3-5s4 4 7 3 3-5 1-7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>KITCHEN TO GARDEN<svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg></span>
+    </button>
+    <div class="picker">
+      <button class="arrow" id="carPrev" aria-label="Previous vehicle"><svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg></button>
+      <div class="vehicles" id="vehList"></div>
+      <button class="arrow" id="carNext" aria-label="Next vehicle"><svg viewBox="0 0 24 24"><path d="M10 6l6 6-6 6" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg></button>
+    </div>
+    <div class="handNote">Choose your ride. Make it yours.<svg viewBox="0 0 160 10" aria-hidden="true"><path d="M2 7 Q60 1 158 5" stroke="#ffd166" stroke-width="3" fill="none" stroke-linecap="round"/></svg></div>
+    <div class="ctaRow">
+      <button id="btnOnline" class="pill alt">🌐 Online</button>
+      <button id="btnStart" class="pill race">LET’S RACE!<svg viewBox="0 0 30 30" aria-hidden="true"><g fill="#fff"><rect x="2" y="2" width="8" height="8"/><rect x="18" y="2" width="8" height="8"/><rect x="10" y="10" width="8" height="8"/><rect x="2" y="18" width="8" height="8"/><rect x="18" y="18" width="8" height="8"/></g></svg></button>
+    </div>
+    <button id="btnCredits" class="creditsLink">Credits</button>
+  </div>
+  <div id="settings" class="hidden sheet" role="dialog" aria-label="Settings">
+    <h3>Settings</h3>
+    <label class="srow">🔊 Sound volume <input type="range" id="setVol" min="0" max="100" step="5"></label>
+    <label class="srow">📳 Camera shake <input type="checkbox" id="setShake"></label>
+    <label class="srow">💨 Speed zoom (FOV) <input type="checkbox" id="setFov"></label>
+    <button class="big alt btnQuality" id="btnQuality">⚙️ Graphics</button>
+    <button class="big alt btnControls" id="btnControls">🎮 Controls: One stick</button>
+    <button class="big" id="btnSettingsClose">Done</button>
+  </div>
+  <div id="trackInfo" class="hidden sheet" role="dialog" aria-label="Track">
+    <h3>🏁 From the Kitchen to the Garden</h3>
+    <ol class="sections">
+      <li><b>Kitchen &amp; Table</b> – fast tiles, then between chair legs under a low table</li>
+      <li><b>Pet Door → Lawn</b> – squeeze through the flap, kicker ramp on the grass</li>
+      <li><b>Sandbox Tunnel</b> – a drain pipe through the sand hill (no flying over!)</li>
+      <li><b>Rolling Hills</b> – bumps that throw you into the air</li>
+      <li><b>Toy Town</b> – street between houses, garage-roof shortcut, BIG JUMP over the puddle</li>
+      <li><b>Gnome Garden</b> – through the doghouse and back inside</li>
+    </ol>
+    <p class="small">3 laps · 3 rivals · pass under every checkpoint gate.</p>
+    <p class="small wtip">🎁 Crates give a random weapon: 💣 Sticky Bomb · 💨 Nitro Turbo · 🔥 Fire Trail · ⚡ Electrify · 🚀 Rocket · 🔴 Ball · 💥 Shockwave · 🌀 EMP Pulse · 👻 Ghost</p>
+    <button class="big" id="btnTrackClose">Close</button>
   </div>
   <div id="credits" class="hidden">
     <h3>📜 Credits</h3>
+    <p><b>Fonts</b> – Lilita One (Juan Montoreano), Fredoka (The Fredoka Project Authors), Caveat (The Caveat Project Authors) – all <b>SIL Open Font License 1.1</b>, subset. Title-screen props, logo, icons and synthesised sounds are original.</p>
     <p><b>Race car model</b> – “Toy Car” by Guido Odendahl (model) and Eric Chadwick (extensions), Khronos glTF Sample Assets. License: <b>CC0 1.0</b> (public domain). github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/ToyCar · Modified: wheels split for animation, simplified, re-textured colours, compressed.</p>
     <p><b>Helicopter model</b> – “Ingenuity Mars Helicopter” 3D model, NASA/JPL-Caltech (science.nasa.gov/resource/mars-ingenuity-helicopter-3d-model). NASA content: <b>public domain</b> (not copyrighted in the U.S.); used without NASA insignia and without implying endorsement. Modified: rotors re-pivoted, colour tint, compressed.</p>
     <p><b>Motorcycle model</b> – “Motorcycle” by animanyarty, Sketchfab (https://sketchfab.com/3d-models/motorcycle-38404e2077ca4b209cd2f1db30541b94). License: <b>CC BY 4.0</b> (creativecommons.org/licenses/by/4.0/). Modified: re-oriented/scaled, wheels split for animation, simplified, textures WebP ≤1K, meshopt-compressed.</p>
@@ -127,6 +156,18 @@
 
 <div id="rotate"><div>📱↻</div><div>Rotate your phone to landscape</div></div>
 
+<script>
+// v4.0: never a blank screen – explain clearly when 3D (WebGL) can't start
+(function(){
+  function fail(why){ if (window.__tzBooted || document.getElementById('glErr')) return; var d=document.createElement('div'); d.id='glErr'; d.setAttribute('role','alert');
+    d.innerHTML='<div><h2>Oops – the 3D garage won\u2019t start</h2><p>Tiny Zoom needs WebGL (3D graphics) and your browser couldn\u2019t turn it on.</p><p style="opacity:.8;font-size:14px">Try: enable hardware acceleration in your browser settings, update the browser, or open the game in Chrome, Safari or Firefox.</p><p style="opacity:.6;font-size:12px">'+String(why||'').replace(/[<>&]/g,'')+'</p><button onclick="location.reload()">Reload</button></div>';
+    document.body.appendChild(d); }
+  window.tzFail = fail;
+  try { var c=document.createElement('canvas'); if(!(c.getContext('webgl2')||c.getContext('webgl'))) addEventListener('DOMContentLoaded',function(){fail('WebGL is not available.');}); } catch(e){}
+  addEventListener('error',function(e){ if(!window.__tzBooted) setTimeout(function(){ if(!window.__tzBooted) fail(e.message||'Loading error'); },1500); });
+  addEventListener('load',function(){ setTimeout(function(){ if(!window.__tzBooted) fail('The game took too long to start.'); },25000); });
+})();
+</script>
 <script type="module" src="main.js"></script>
 </body>
 </html>

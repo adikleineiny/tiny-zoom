@@ -42,3 +42,13 @@ Decoder: `vendor/addons/libs/meshopt_decoder.module.js` – meshoptimizer, MIT �
 - **Trystero** 0.26.0 (Nostr strategy) – © Dan Motzenbecker – MIT License – https://github.com/dmotz/trystero → `vendor/trystero-nostr.min.js`
 - **nostr-tools** 2.25.2 (event signing only) – Unlicense – https://github.com/nbd-wtf/nostr-tools → `vendor/nostr-pure.min.js`
 - Both include **noble-hashes / noble-curves / noble-secp256k1** – © Paul Miller – MIT License – https://paulmillr.com/noble/
+
+## Fonts (v4.0, bundled in `fonts/`, subset to Latin)
+- **Lilita One** – © Juan Montoreano – SIL Open Font License 1.1 – https://fonts.google.com/specimen/Lilita+One → `fonts/LilitaOne-Regular.woff`
+- **Fredoka** – © The Fredoka Project Authors (Milena Brandão) – SIL Open Font License 1.1 – https://fonts.google.com/specimen/Fredoka → `fonts/Fredoka.woff`
+- **Caveat** – © The Caveat Project Authors (Impallari Type) – SIL Open Font License 1.1 – https://fonts.google.com/specimen/Caveat → `fonts/Caveat.woff`
+- Full licence text: `fonts/OFL.txt`. Fonts were subset (pyftsubset); no other changes. Reserved Font Names are not used for the modified files' names beyond the original family names as permitted for subsetting.
+
+## v4.0 title screen ("Toy Garage") & sounds
+All garage props (desk, cutting mat, AA batteries, screws, wrench, screwdriver, pencil mug, tyres, stickers, paint pots), the painted blurred room backdrop,
+the logo/flag SVG and icons are original procedural work made for Tiny Zoom. All sound effects are synthesised at runtime with WebAudio (no audio files).

@@ -13,11 +13,14 @@ import { Weapons, WEAPONS, WEAPON_KEYS } from './weapons.js';
 import { FX } from './fx.js';
 import { preloadModels, setModelsEnabled, GLB } from './models.js';
 import { Online, makeCode, validCode, NET_COLORS } from './online.js';
+import { Garage } from './garage.js';
+import { SFX } from './sfx.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+let renderer; try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch (e) { window.tzFail?.('WebGL could not be created: ' + (e.message || e)); throw e; }
+canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__tzBooted = false; window.tzFail?.('The graphics context was lost.'); });
 // v3.5: sRGB output + ACES filmic tone mapping, soft PCF shadows, quality levels with automatic fallback
 const RC = CONFIG.render;
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = RC.exposure;
@@ -127,19 +130,68 @@ function toMenu() {
 }
 
 // ---------- UI wiring ----------
+// v4.0 title screen: toy-garage 3D scene + carousel. Stats are honest: every vehicle has the same top speed;
+// handling/grip are hand-rated descriptions of the feel (not hidden multipliers).
+const FEEL = { racecar: [6, 9], moto: [7, 6], scooter: [9, 7], drone: [8, 8], heli: [6, 5] };
+const settings = Object.assign({ vol: 70, muted: false, shake: true, fov: true }, (() => { try { return JSON.parse(localStorage.getItem('tz.settings') || '{}'); } catch (_) { return {}; } })());
+const saveSettings = () => { try { localStorage.setItem('tz.settings', JSON.stringify(settings)); } catch (_) {} };
+const sfx = new SFX(); sfx.setVolume(settings.vol / 100); sfx.setMuted(settings.muted);
+const garage = new Garage(renderer, scene.environment);
 $('vehList').innerHTML = MODELS.map(m => { const M = CONFIG.models[m];
-  return `<button class="vcard${m === selected ? ' sel' : ''}" data-type="${m}"><div class="vicon">${M.icon}</div><div class="vname">${M.label}</div>` +
-    ['Speed', 'Accel', 'Boost'].map(k => `<div class="stat"><span>${k}</span><i style="--v:80%"></i></div>`).join('') +
-    `<div class="vflav">${M.class === 'drone' ? '🛸 Flies' : '🛞 Drives & jumps'} · equal stats</div><div class="vnote">${M.note}</div></button>`; }).join('');
-document.querySelectorAll('.vcard').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.vcard').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); selected = b.dataset.type;
-}));
+  return `<button class="vcard${m === selected ? ' sel' : ''}" data-type="${m}" aria-label="${M.label}"><span class="vthumb"><span class="vicon">${M.icon}</span></span><span class="vname">${M.label.replace('RC ', '')}</span></button>`; }).join('');
+function selectVehicle(m) {
+  selected = normSel(m); const M = CONFIG.models[selected];
+  document.querySelectorAll('.vcard').forEach(x => x.classList.toggle('sel', x.dataset.type === selected));
+  document.querySelector('.vcard.sel')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  $('carName').textContent = M.label; $('carNote').textContent = (M.class === 'drone' ? '🛸 Flies over obstacles. ' : '🛞 Drives & jumps. ') + M.note;
+  const [h, g] = FEEL[selected] || [7, 7];
+  $('stSpeed').style.setProperty('--v', '80%'); $('stHandling').style.setProperty('--v', h * 10 + '%'); $('stGrip').style.setProperty('--v', g * 10 + '%');
+  $('stHandling').title = `Handling ${h}/10`; $('stGrip').title = `Grip ${g}/10`;
+  garage.setVehicle(CONFIG.models[selected].class === 'drone' ? 'drone' : 'car', COLORS[0], selected);
+  $('hudName').textContent = M.label;
+}
+document.querySelectorAll('.vcard').forEach(b => b.addEventListener('click', () => { sfx.unlock(); sfx.ui(); selectVehicle(b.dataset.type); }));
+const stepVehicle = d => { sfx.unlock(); sfx.ui(); selectVehicle(MODELS[(MODELS.indexOf(selected) + d + MODELS.length) % MODELS.length]); };
+$('carPrev').addEventListener('click', () => stepVehicle(-1)); $('carNext').addEventListener('click', () => stepVehicle(1));
+$('btnCarInfo').addEventListener('click', () => $('carNote').classList.toggle('hidden'));
+{ let sx = null; const el = $('titleUI'); el.addEventListener('pointerdown', e => { if (e.target === el) sx = e.clientX; }); el.addEventListener('pointerup', e => { if (sx != null && Math.abs(e.clientX - sx) > 50) stepVehicle(e.clientX < sx ? 1 : -1); sx = null; }); }
+function makeThumbs() { // rendered once, after the GLB models are in
+  try { for (const b of document.querySelectorAll('.vcard')) { const m = b.dataset.type, url = garage.thumbnail(CONFIG.models[m].class === 'drone' ? 'drone' : 'car', COLORS[0], m);
+    b.querySelector('.vthumb').innerHTML = `<img src="${url}" alt="">`; } } catch (e) { console.warn('thumbs', e); }
+  selectVehicle(selected);
+}
+function trackPreview() { // clean render of the real track (pet door → garden), no HUD
+  try { const r = renderer, old = new THREE.Vector2(); r.getSize(old); const pr = r.getPixelRatio(), W = 480, H = 210;
+    const cam = new THREE.PerspectiveCamera(52, W / H, 0.5, 5000); const T = track, N = T.N; let i = 0; while (i < N && T.section[i] !== 1) i++; i = (i + 6) % N;
+    const j = (i - 14 + N) % N, k = (i + 22) % N; cam.position.set(T.px[j], 38, T.pz[j]); cam.lookAt(T.px[k], 0, T.pz[k]);
+    r.setPixelRatio(1); r.setSize(W, H, false); r.render(scene, cam);
+    const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(r.domElement, 0, 0, W, H, 0, 0, W, H);
+    r.setPixelRatio(pr); r.setSize(old.x, old.y, false); $('trackImg').src = c.toDataURL('image/jpeg', 0.85); } catch (e) { console.warn('preview', e); }
+}
+selectVehicle(selected);
+// settings sheet
+function syncSettings() {
+  $('setVol').value = settings.vol; $('setShake').checked = settings.shake; $('setFov').checked = settings.fov;
+  $('btnSound').classList.toggle('off', settings.muted || !settings.vol); $('btnSound').setAttribute('aria-pressed', String(!settings.muted));
+  sfx.setVolume(settings.vol / 100); sfx.setMuted(settings.muted); saveSettings();
+}
+$('btnSound').addEventListener('click', () => { sfx.unlock(); settings.muted = !settings.muted; if (!settings.muted && !settings.vol) settings.vol = 70; syncSettings(); sfx.ui(); });
+$('btnSettings').addEventListener('click', () => { sfx.unlock(); $('settings').classList.remove('hidden'); });
+for (const id of ['btnSettings2']) $(id)?.addEventListener('click', () => $('settings').classList.remove('hidden'));
+$('btnSettingsClose').addEventListener('click', () => $('settings').classList.add('hidden'));
+$('setVol').addEventListener('input', e => { settings.vol = +e.target.value; settings.muted = false; syncSettings(); });
+$('setVol').addEventListener('change', () => sfx.ui());
+$('setShake').addEventListener('change', e => { settings.shake = e.target.checked; syncSettings(); });
+$('setFov').addEventListener('change', e => { settings.fov = e.target.checked; syncSettings(); });
+$('btnTrack').addEventListener('click', () => { sfx.ui(); $('trackInfo').classList.remove('hidden'); });
+$('btnTrackClose').addEventListener('click', () => $('trackInfo').classList.add('hidden'));
+syncSettings();
 function goFullscreen() {
   const el = document.documentElement;
   if (el.requestFullscreen && !document.fullscreenElement && matchMedia('(pointer:coarse)').matches)
     el.requestFullscreen().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
 }
-$('btnStart').addEventListener('click', () => { goFullscreen(); startRace(selected); });
+$('btnStart').addEventListener('click', () => { sfx.unlock(); goFullscreen(); startRace(selected); });
 $('btnHelp').addEventListener('click', () => $('help').classList.remove('hidden'));
 $('btnCredits')?.addEventListener('click', e => { e.preventDefault(); $('credits').classList.remove('hidden'); });
 $('btnCreditsClose')?.addEventListener('click', () => $('credits').classList.add('hidden'));
@@ -209,7 +261,7 @@ function updateCamera(dt, snap) {
   camera.lookAt(camLook);
   // speed feel: FOV widens with speed, kicks on turbo
   const top = r.type === 'car' ? r.V.topSpeed : r.V.thrust / r.V.drag;
-  const wantFov = CONFIG.camera.fov + CONFIG.camera.speedFov * Math.min(1, r.speed / top) + (r.turboT > 0 ? CONFIG.camera.turboFov : 0);
+  const wantFov = !settings.fov ? CONFIG.camera.fov : CONFIG.camera.fov + CONFIG.camera.speedFov * Math.min(1, r.speed / top) + (r.turboT > 0 ? CONFIG.camera.turboFov : 0);
   fovNow += (wantFov - fovNow) * (snap ? 1 : Math.min(1, dt * 4));
   if (Math.abs(camera.fov - fovNow) > 0.05) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
 }
@@ -266,7 +318,8 @@ function hudEvents() {
     else if (e.type === 'bombPass' && e.from === player) toast(`💣 Passed the bomb to ${e.to.name}!`);
     else if (e.type === 'rescue' && e.r === player) { $('rescueFx').classList.add('on'); toast(e.reason === 'wrongway' ? '🎣 Wrong way – back on track!' : '🎣 Back on track!'); }
     else if (e.type === 'rescued' && e.r === player) $('rescueFx').classList.remove('on');
-    if (e.type === 'turboPad' && e.r === player) window.RC_SOUND?.('turboPad', e); // sound hook (no audio engine yet)
+    if (e.type === 'turboPad' && e.r === player) window.RC_SOUND?.('turboPad', e);
+    sfx.event(e, player);
   }
 }
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); toastT = 2.2; }
@@ -277,7 +330,7 @@ function updateHUD(dt) {
   hudT -= dt; if (hudT > 0) return; hudT = 0.1;
   const st = sim.standings(); $('posNum').textContent = st.indexOf(player) + 1;
   const lap = Math.min(CONFIG.laps, player.lapsDone + 1);
-  $('lapNum').textContent = player.finished ? 'Finished!' : `Lap ${lap}/${CONFIG.laps}`;
+  { const ln = $('lapNum'); const t = player.finished ? 'FINISHED!' : `LAP <b>${lap}</b>/${CONFIG.laps}`; if (ln._t !== t) { ln._t = t; ln.innerHTML = t; } }
   $('lapTime').textContent = fmt(player.finished ? player.lapTimes.at(-1) : (state === 'race' ? sim.t - player.lapStart : 0));
   $('totTime').textContent = fmt(player.finished ? player.finishTime : sim.t, 1); $('bestTime').textContent = fmt(player.best);
   $('spd').textContent = Math.round(player.speed); { const top = player.type === 'car' ? player.V.topSpeed * 1.6 : 220, f = Math.min(1, player.speed / top); const g = $('gaugeArc'); if (g) g.style.strokeDashoffset = String(100 - f * 100); $('hudBat').classList.toggle('turbo', player.turboT > 0); }
@@ -369,10 +422,11 @@ addEventListener('pagehide', () => online.close(true));
 // v3.5: big bold pop-in countdown (each number re-triggers the CSS animation)
 function setCountdown(t) {
   if (t === cdShown) return; cdShown = t; const el = $('countdown');
+  if (t) sfx.count(t);
   el.innerHTML = t ? `<span class="cd ${t === 'GO!' ? 'go' : 'n' + t}">${t}</span>` : '';
   world.setStartLights?.(t === 'GO!' ? 4 : t ? 4 - Number(t) : 0);
 }
-function shake(a, t = 0.45) { shakeAmp = Math.max(shakeAmp * (shakeT > 0 ? 1 : 0), a); shakeT = Math.max(shakeT, t); }
+function shake(a, t = 0.45) { if (!settings.shake) return; shakeAmp = Math.max(shakeAmp * (shakeT > 0 ? 1 : 0), a); shakeT = Math.max(shakeT, t); }
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); const q = QUALITY[quality.level]; bloomPass.resolution.set(w * (q.bloomRes || 0.5), h * (q.bloomRes || 0.5)); } }
 addEventListener('resize', resize); resize();
 const H = 1 / CONFIG.physicsHz;
@@ -411,14 +465,17 @@ function frame(now) {
   world.followSun?.(followed());
   const fr = followed(); meshes.forEach((m, k) => { if (m.label) { const r = sim.racers[k]; const d = camera.position.distanceTo(m.root.position); m.label.visible = r !== fr && d > 55; m.label.material.opacity = Math.min(1, (d - 55) / 40); } });
   updateHUD(dt);
-  if (QUALITY[quality.level].bloom && composer) composer.render(); else renderer.render(scene, camera); window.__calls = renderer.info.render.calls;
+  sfx.engine(!!(player && (state === 'race' || state === 'finished') && !paused), player ? Math.min(1, player.speed / (player.type === 'car' ? player.V.topSpeed : player.V.thrust / player.V.drag)) : 0, player?.type === 'drone');
+  const garageOn = state === 'menu' && !camOverride && !$('menu').classList.contains('hidden');
+  if (garageOn) { garage.update(paused ? 0 : dt); garage.render(innerWidth, innerHeight); }
+  else if (QUALITY[quality.level].bloom && composer) composer.render(); else renderer.render(scene, camera); window.__calls = renderer.info.render.calls;
   requestAnimationFrame(frame);
 }
 
 // ---------- test / debug hooks ----------
 window.__rc = {
   sim, track, CONFIG, scene, get camera() { return camera; }, get calls() { return renderer.info.render.calls; }, get state() { return state; }, get player() { return player; },
-  get online() { return online; }, startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
+  get online() { return online; }, garage, sfx, settings, startRace, toMenu, setTimeScale: s => (timeScale = s), weapons, WEAPONS,
   setCam(pos, look) { camOverride = pos ? [pos, look] : null; },
   get meshes() { return meshes; }, input, world, GLB, createVehicleMesh, updateVehicleMesh, quality, setQuality(l) { quality.auto = false; setQualityLevel(l); }, QUALITY, frameStats() { const r = { avgMs: quality.frames ? quality.sum / quality.frames : 0, frames: quality.frames, level: quality.level, dpr: renderer.getPixelRatio(), shadows: renderer.shadowMap.enabled, calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; quality.frames = 0; quality.sum = 0; return r; }, rescue: (r = player, why) => sim.rescue(r, why),
   give(w, r = player) { weapons.give(r, w); }, fire(r = player) { return weapons.use(r); },
@@ -437,11 +494,12 @@ window.__rc = {
   },
 };
 
-startDemo();
+startDemo(); window.__tzBooted = true;
 const auto = params.get('autostart');
 // v3.6: licensed GLB vehicles load in the background (local files, ~1 MB); demo racers are re-skinned when ready
 const modelsReady = Promise.race([preloadModels(), new Promise(r => setTimeout(r, 6000))]);
 modelsReady.then(() => {
+  makeThumbs(); trackPreview();
   if (state === 'menu' && !auto) { for (const m of meshes) { scene.remove(m.root); scene.remove(m.shadow); } spawnMeshes(); }
   if (auto) startRace(normSel(auto), { autopilot: params.get('autopilot') === '1' });
 });

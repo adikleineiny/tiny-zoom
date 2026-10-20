@@ -72,14 +72,14 @@ export function buildWorld(scene, track, renderer) {
 
   let startLights = [];
   // ---------- lights / sky ----------
-  scene.background = new THREE.Color(0x9fd3f5);
-  scene.fog = new THREE.Fog(0x9fd3f5, 1400, 3800);
+  scene.background = new THREE.Color(0xa9d4ee); // v4.0 golden-hour grade: warmer sky + haze
+  scene.fog = new THREE.Fog(0xe8d9c0, 1400, 3800);
   // v3.5: sky/ground hemisphere + warm sun with soft PCF shadows that follow the camera target
-  scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x9a7a58, 1.0));
-  const sun = new THREE.DirectionalLight(0xfff0d8, 1.55); sun.position.set(300, 500, 200); scene.add(sun); scene.add(sun.target);
+  scene.add(new THREE.HemisphereLight(0xfff1dc, 0x8a6a48, 0.95));
+  const sun = new THREE.DirectionalLight(0xffd9a6, 1.8); sun.position.set(300, 500, 200); scene.add(sun); scene.add(sun.target);
   { const RC = CONFIG.render, S = sun.shadow, b = RC.shadowBox; sun.castShadow = true; S.mapSize.set(RC.shadowMap, RC.shadowMap); S.camera.left = -b; S.camera.right = b; S.camera.top = b; S.camera.bottom = -b; S.camera.near = 10; S.camera.far = 700; S.bias = -0.0008; S.normalBias = 0.4; S.radius = 3; }
   const SUN_OFF = new THREE.Vector3(120, 260, 90);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+  scene.add(new THREE.AmbientLight(0xffe6c8, 0.12));
   // environment reflections for glossy vehicle paint: PMREM of a small generated room (bright window panels + warm floor)
   { const env = new THREE.Scene(); const room = new THREE.Mesh(new THREE.BoxGeometry(100, 60, 100), new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true }));
     const cols = [], pc = room.geometry.attributes.position; for (let k = 0; k < pc.count; k++) { const y = pc.getY(k); const c = new THREE.Color(y > 0 ? 0xcfe8ff : 0x7a5a3a); cols.push(c.r, c.g, c.b); } room.geometry.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); env.add(room);
