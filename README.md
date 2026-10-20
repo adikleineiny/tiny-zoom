@@ -4,6 +4,15 @@ Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen,
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
 
+## v3.6 – realistic licensed vehicle models
+- **Race car**: "Toy Car" glTF sample (Guido Odendahl / Eric Chadwick, **CC0 1.0**) – PBR clear-coat paint, chrome, glass, flames livery; wheels split into 4 pivots (spin + front steer), paint recoloured per racer by a hue-shift shader, simplified to ~43.5k tris, WebP textures ≤1K, meshopt → `models/racecar.glb` (0.74 MB).
+- **Helicopter**: NASA/JPL "Ingenuity Mars Helicopter" (**public domain**, no insignia) – coaxial rotors re-pivoted to counter-spin with blur discs, foil tinted per racer, ~9.5k tris → `models/heli.glb` (0.28 MB).
+- Motorcycle, scooter, drone stay original procedural models (no CC0/CC-BY-4.0 model of comparable realism available via direct download).
+- Loaded locally with GLTFLoader + bundled meshopt decoder (works offline / in the iOS app). Procedural fallback if a file fails to load, on the **Low** preset, or with `?models=0`.
+- In-game **📜 Credits** screen (menu) + `CREDITS.md`. Physics, hitboxes and `CONFIG.equal` unchanged.
+- Tests: `tests/models_test.py` (GLBs load, 4 wheel pivots/2 rotors, wheels spin, tint, ≤60k tris, no external requests, Low fallback, Credits screen) plus all previous suites; screenshots 26/27 via `tests/graphics_shots36.py`.
+- Run locally: `cd rc-games && python3 -m http.server 8765` → http://localhost:8765
+
 ## v3.3 – turbo pads, equal vehicles, RC parts crates
 - **Turbo pads replace the charging pads.** The 5 blue ⚡ charging pads and the whole battery mechanic (drain, low-battery slowdown, AI/assist landing to recharge, battery HUD) are gone. 11 orange **turbo pads** with glowing chevrons sit on the track centre: kitchen straights ×2, under the table, before the lawn kicker, before the tunnel, before the rolling hills, hills straight, before the Toy Town kicker, before the BIG JUMP, garden straight, west-wall straight. Driving over one – or flying over it within 40 cm – gives a short strong boost (`CONFIG.turboPads`: 0.9 s of turbo, 1.2 s cooldown) with the turbo flames/FOV/speed lines, an orange burst, a "🚀 TURBO PAD!" hint and a `turboPad` sim event + `window.RC_SOUND('turboPad')` sound hook. The flyer assist and AI dip to 18 cm over an upcoming pad, so pads are fair for every type. Nitro Turbo stays a crate item.
 - **All vehicles equal.** `CONFIG.equal` (applied to every model, player and AI, after `?cfg`): same top speed 140 cm/s, accel 280, jump 150, grip, mass, size; flyers thrust = 140 × drag; turbo multiplier 1.55 for cars and flyers. AI rivals use the same tables for every type (latAcc/brake/section caps). Models keep look, sound and a little handling flavour (moto lean/drift, scooter twitchy steering, heli rotor-tilt + wobble). Terrain fairness: the lawn now slows flyers too (outdoor headwind, `surfaces.grass.drone` 0.885) to cancel the grass/hill advantage flyers had. Menu cards show equal stat bars + flavour text. Solo weapons-off best laps: race car 73.6, moto 72.8, scooter 73.4, drone 72.7, heli 74.2 s (spread 2.0%; v3.2 was 77.3 moto – 85.0 drone).
@@ -79,3 +88,34 @@ Console: `__rc.simulateRace('heli', 500, {weapons:true})` → headless race resu
 - `tests/sim_test.py` – headless balance sim for all 5 vehicles; fails if anyone doesn't finish, lap out of range, flyers out-lap ground vehicles by >4%, or the weapons-off per-vehicle best-lap spread exceeds 3%.
 - `tests/weapons_test.py` – every weapon vs an AI car and an AI drone, box pickup/roll/respawn, jumps, obstacle hop, bomb passing; terrain: every ramp launches all 3 ground vehicles, hills give air, garage-roof shortcut, tunnel blocks high flyers / lets low ones through / ceiling holds.
 - `tests/ui_test.py [url] [outdir]` – 844×390 touch: menu → race, sticks, JUMP button + tap-the-slot FIRE, pickup, weapon effects, heli flight, drone flight assist, tunnel / big jump / toy town / hills, draw calls, finish; writes screenshots (01–14).
+
+## v3.4
+- Steering: fully analog 360° sticks. Default **One stick** mode – the left stick does steer + throttle together (diagonals
+  blend), right stick does the same; 9% radial deadzone with rescaling, gentle response curve, ~35 ms smoothing. Also
+  **Point & go** (push where you want to go, camera-relative) and **Classic RC** (old transmitter layout) via 🎮 Controls.
+  Keyboard combos (W+A etc.) ramp smoothly. Ground vehicles keep steering authority at low speed.
+- Sticky bombs are lobbed **backwards** (player + AI; AI fires when someone is close behind); never stick to the thrower.
+- Flyers (drone / helicopter) boost through floating orange/cyan **turbo rings** (one above each pad, ~22 cm up, shown on the
+  minimap); ground pads only boost ground vehicles.
+- New tests: `tests/steering_test.py`, `tests/rings_bomb_test.py`.
+
+## v3.5 – graphics upgrade
+Run locally: `cd rc-games && python3 -m http.server 8765` → http://localhost:8765 (any static server works; everything is bundled, no CDN).
+
+Improvements
+- Engine stays **Three.js r160** (already in use, mature WebGL2 path on iOS Safari/WKWebView, no rewrite risk; the new look needed
+  materials/lighting/post, not a new engine).
+- Renderer: sRGB output, ACES filmic tone mapping, DPR-correct (capped per preset), MSAA; soft PCF sun shadows that follow the
+  camera target; hemisphere sky light; PMREM environment map generated from a small procedural "room" for paint/glass/metal reflections.
+- Post-processing (High/Ultra): EffectComposer → UnrealBloomPass → OutputPass (glow on turbo pads/rings, lights, FX).
+- Quality presets **Low / Medium / High / Ultra** (⚙️ Graphics button in menu + pause, saved in localStorage; default mobile =
+  Medium, desktop = High; `?quality=low|medium|high|ultra` overrides) + **dynamic resolution**: if frame time stays >20 ms the
+  render scale steps down to 60 %, then the preset drops.
+- Vehicles: PBR materials (clear-coated paint, metallic rims, tinted see-through glass, HDR head/brake lights that bloom),
+  tread-textured tyres, livery stripes + race-number roundels, visible suspension arms, brake lights, turbo exhaust flame,
+  drone camera gimbal + blinking LEDs, rotor blur discs. Physics/hitboxes and CONFIG.equal unchanged.
+- Environment: 512px procedural tiles/grass/wood grain with anisotropic filtering, wooden garden fence, white track edge lines,
+  start-line gantry with banner + 4 start lights synced to the countdown.
+- Juice: big pop-in 3-2-1-GO! countdown, tyre skid marks, sparks on wall scrapes, dust/grass from wheels, camera shake on hits /
+  nearby explosions, lower chase camera, arc + digital speedometer.
+- Tests: all suites in `tests/` + `tests/graphics_shots.py` (screenshots 22–24 and frame time per preset).
