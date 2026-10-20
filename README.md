@@ -1,8 +1,11 @@
-# Tiny Zoom – RC toy racing v3.3
+# Tiny Zoom – RC toy racing v3.7
 
 Original arcade RC-toy racer: 5 tiny RC vehicles racing through a giant kitchen, a backyard sandbox tunnel, rolling hills and a toy town, with ramps, jumps and secret weapons. Static site, Three.js r160 bundled in `vendor/`.
 
 Run: `python3 -m http.server 8765` in this folder → open http://localhost:8765 (must be served over http, ES modules).
+
+## v3.7 – Sketchfab CC-BY motorcycle, scooter & drone
+- **Motorcycle**: “Motorcycle” by animanyarty, **Scooter**: “Electric Scooter (Low-poly, game-ready)” by Delandi, **Drone**: “Quadcopter drone” by Annelida – all **CC BY 4.0** from Sketchfab (see CREDITS.md). Wheels (moto/scooter) auto-split onto spinning/steering pivots, drone props spin; meshopt + WebP ≤1K → `models/moto.glb`, `scooter.glb`, `drone.glb`. Physics/speeds unchanged. Screenshots 28/29 via `tests/graphics_shots37.py`.
 
 ## v3.6 – realistic licensed vehicle models
 - **Race car**: "Toy Car" glTF sample (Guido Odendahl / Eric Chadwick, **CC0 1.0**) – PBR clear-coat paint, chrome, glass, flames livery; wheels split into 4 pivots (spin + front steer), paint recoloured per racer by a hue-shift shader, simplified to ~43.5k tris, WebP textures ≤1K, meshopt → `models/racecar.glb` (0.74 MB).
