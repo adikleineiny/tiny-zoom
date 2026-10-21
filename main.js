@@ -187,6 +187,9 @@ $('btnTrack').addEventListener('click', () => { sfx.ui(); $('trackInfo').classLi
 $('btnTrackClose').addEventListener('click', () => $('trackInfo').classList.add('hidden'));
 syncSettings();
 function goFullscreen() {
+  // Inside the native iOS/Android app (Capacitor) the Fullscreen API makes iOS show a
+  // persistent "is in full screen. Swipe down to exit." banner; the app is already fullscreen.
+  if (window.Capacitor?.isNativePlatform?.() || location.protocol === 'capacitor:') return;
   const el = document.documentElement;
   if (el.requestFullscreen && !document.fullscreenElement && matchMedia('(pointer:coarse)').matches)
     el.requestFullscreen().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
